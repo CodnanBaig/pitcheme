@@ -34,7 +34,8 @@ async function getProposal(id: string, userId: string) {
   }
 }
 
-export async function GET(request: NextRequest, { params }: ExportProposalParams) {
+export async function GET(request: NextRequest, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   try {
     const session = await auth()
 

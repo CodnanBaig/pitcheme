@@ -32,8 +32,9 @@ async function getPitchDeck(id: string, userId: string) {
 
 export async function GET(
   request: NextRequest,
-  { params }: RouteParams
+  props: { params: Promise<{ id: string }> }
 ) {
+  const params = await props.params;
   try {
     const session = await auth()
 
