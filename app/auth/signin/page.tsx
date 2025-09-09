@@ -1,5 +1,5 @@
 "use client"
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { signIn, useSession } from "next-auth/react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { Button } from "@/components/ui/button"
@@ -16,23 +16,49 @@ export default function SignInPage() {
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState("")
   const [successMessage, setSuccessMessage] = useState("")
+  const [signInAttempted, setSignInAttempted] = useState(false)
+  const timeoutRef = useRef<NodeJS.Timeout | null>(null)
+  const emailId = useId()
+  const passwordId = useId()
+
+  useEffect(() => {
+    // Clean up timeout on unmount
+    return () => {
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current)
+      }
+    }
+  }, [])
 
   useEffect(() => {
     // Only redirect if we have a session and we're not in the middle of signing in
-    if (session && !isLoading) {
+    if (session && status === "authenticated" && signInAttempted) {
+      console.log("Session detected after sign-in, redirecting to dashboard...")
+      // Clear any pending timeout
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current)
+        timeoutRef.current = null
+      }
       router.push("/dashboard")
     }
-    
+
     const message = searchParams.get("message")
     if (message) {
       setSuccessMessage(message)
     }
-  }, [session, router, searchParams, isLoading])
+  }, [session, status, router, searchParams, signInAttempted])
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
     setIsLoading(true)
     setError("")
+    setSignInAttempted(false)
+
+    // Clear any existing timeout
+    if (timeoutRef.current) {
+      clearTimeout(timeoutRef.current)
+      timeoutRef.current = null
+    }
 
     const formData = new FormData(e.currentTarget)
     const email = formData.get("email") as string
@@ -47,14 +73,29 @@ export default function SignInPage() {
 
       if (result?.error) {
         setError("Invalid email or password")
+        setIsLoading(false)
       } else if (result?.ok) {
-        // Redirect to dashboard after successful sign in
-        router.push("/dashboard")
+        // Sign in successful - set flag and wait for session update
+        console.log("Sign in successful, waiting for session update...")
+        setSignInAttempted(true)
+
+        // Safety timeout in case session doesn't update
+        timeoutRef.current = setTimeout(() => {
+          console.log("Session update timeout, resetting loading state")
+          setIsLoading(false)
+          setSignInAttempted(false)
+          setError("Sign in successful but session not updated. Please try refreshing the page.")
+          timeoutRef.current = null
+        }, 10000) // 10 second timeout
       }
-    } catch (error) {
+    } catch (err) {
+      console.error("Sign in error:", err)
       setError("An error occurred during sign in")
-    } finally {
       setIsLoading(false)
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current)
+        timeoutRef.current = null
+      }
     }
   }
 
@@ -95,16 +136,19 @@ export default function SignInPage() {
           {/* Email and Password Sign In */}
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="email">Email</Label>
-              <Input id="email" name="email" type="email" placeholder="Enter your email" required className="w-full" />
+              <Label htmlFor={emailId}>Email</Label>
+              <Input id={emailId} name="email" type="email" placeholder="Enter your email" required className="w-full" />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="password">Password</Label>
-              <Input id="password" name="password" type="password" placeholder="Enter your password" required className="w-full" />
+              <Label htmlFor={passwordId}>Password</Label>
+              <Input id={passwordId} name="password" type="password" placeholder="Enter your password" required className="w-full" />
             </div>
             <Button type="submit" disabled={isLoading} className="w-full bg-primary hover:bg-primary/90">
               <Lock className="w-4 h-4 mr-2" />
-              {isLoading ? "Signing in..." : "Sign In"}
+              {isLoading
+                ? (signInAttempted ? "Redirecting..." : "Signing in...")
+                : "Sign In"
+              }
             </Button>
           </form>
 

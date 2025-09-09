@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>DataFlow Solutions – Investor Pitch Deck</title>
+    <style>
+        /* Global PDF-ready styles */
+        body {
+            font-family: 'Segoe UI', Arial, sans-serif;
+            color: #1A1A1A;
+            margin: 0;
+            padding: 0;
+        }
+        .slide {
+            width: 1000px;
+            height: 562px;
+            padding: 40px;
+            box-sizing: border-box;
+            position: relative;
+            page-break-after: always;
+        }
+        h1 {
+            font-size: 36px;
+            font-weight: 700;
+            color: #0B2B5B;
+            margin: 0 0 16px;
+        }
+        h2 {
+            font-size: 28px;
+            font-weight: 600;
+            color: #0B2B5B;
+            margin: 0 0 12px;
+        }
+        h3 {
+            font-size: 22px;
+            font-weight: 600;
+            color: #0B2B5B;
+            margin: 0 0 8px;
+        }
+        p, li {
+            font-size: 18px;
+            line-height: 26px;
+            margin: 0 0 6px;
+        }
+        .accent {
+            color: #0072FF;
+        }
+        .grid2 {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 32px;
+        }
+        .grid3 {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 24px;
+        }
+        
+        /* Kimi-K2 specific styles for PDF export */
+        .pitch-deck-slides .slide {
+            width: 100%;
+            max-width: 1000px;
+            margin: 0 auto 20px;
+            padding: 30px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            page-break-after: always;
+            position: relative;
+        }
+        
+        .pitch-deck-slides .slide:last-child {
+            page-break-after: avoid;
+        }
+        
+        .pitch-deck-slides h1 {
+            font-size: 32px;
+            font-weight: bold;
+            margin-bottom: 20px;
+            text-align: center;
+            color: white;
+        }
+        
+        .pitch-deck-slides h2 {
+            font-size: 24px;
+            margin-bottom: 15px;
+            color: #f8f9fa;
+        }
+        
+        .pitch-deck-slides h3 {
+            font-size: 20px;
+            margin-bottom: 10px;
+            color: #f8f9fa;
+        }
+        
+        .pitch-deck-slides ul {
+            font-size: 18px;
+            line-height: 1.6;
+            margin: 0;
+            padding-left: 20px;
+        }
+        
+        .pitch-deck-slides li {
+            margin-bottom: 8px;
+        }
+        
+        .pitch-deck-slides p {
+            font-size: 16px;
+            line-height: 1.5;
+            margin: 0 0 10px 0;
+        }
+        
+        .pitch-deck-slides .visual-elements {
+            background: rgba(255,255,255,0.1);
+            padding: 20px;
+            border-radius: 8px;
+            margin-top: 20px;
+        }
+        
+        .pitch-deck-slides .speaker-notes {
+            background: rgba(255,255,255,0.1);
+            padding: 15px;
+            border-radius: 8px;
+            margin-top: 30px;
+        }
+        
+        /* Title slide styling */
+        .title-slide {
+            text-align: center;
+            background: linear-gradient(135deg, #15803d 0%, #84cc16 100%);
+            color: white;
+        }
+        .title-slide h1 {
+            color: white;
+            font-size: 64px;
+            margin-bottom: 20px;
+        }
+        .title-slide .tagline {
+            font-size: 32px;
+            margin-bottom: 60px;
+            opacity: 0.9;
+        }
+        .slide-number {
+            position: absolute;
+            bottom: 30px;
+            right: 30px;
+            font-size: 18px;
+            color: #84cc16;
+            font-weight: bold;
+        }
+        
+        @media print {
+            .slide {
+                page-break-after: always;
+                margin: 0;
+                border-radius: 0;
+            }
+            .pitch-deck-slides .slide {
+                page-break-after: always;
+                margin: 0;
+                border-radius: 0;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="pitch-deck-slides">
+        <div class="slide title-slide">
+            <h1>DataFlow Solutions</h1>
+            <div class="tagline">Revolutionizing Data Management</div>
+            <div class="slide-number">1</div>
+        </div>
+        
+        <div class="slide" style="page-break-after: always; margin: 20px; padding: 30px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+            <h1 style="font-size: 32px; font-weight: bold; margin-bottom: 20px; text-align: center;">The Problem</h1>
+            
+            <div style="display: flex; gap: 20px; margin-top: 30px;">
+                <div style="flex: 1;">
+                    <h2 style="font-size: 24px; margin-bottom: 15px; color: #f8f9fa;">Key Points</h2>
+                    <ul style="font-size: 18px; line-height: 1.6;">
+                        <li>Data silos cost companies $3.1T annually</li>
+                        <li>80% of data is unstructured and inaccessible</li>
+                        <li>Manual data processing takes 60% of analyst time</li>
+                    </ul>
+                </div>
+                
+                <div style="flex: 1; background: rgba(255,255,255,0.1); padding: 20px; border-radius: 8px;">
+                    <h3 style="font-size: 20px; margin-bottom: 10px; color: #f8f9fa;">Visual Elements</h3>
+                    <p style="font-size: 16px; line-height: 1.5;">Bar chart showing data silo costs by industry, pie chart of data types, and infographic of time spent on manual processing.</p>
+                </div>
+            </div>
+            
+            <div style="margin-top: 30px; padding: 15px; background: rgba(255,255,255,0.1); border-radius: 8px;">
+                <h3 style="font-size: 18px; margin-bottom: 10px; color: #f8f9fa;">Speaker Notes</h3>
+                <p style="font-size: 16px; line-height: 1.5;">Highlight the massive financial impact and inefficiency of current data management practices.</p>
+            </div>
+        </div>
+        
+        <div class="slide" style="page-break-after: always; margin: 20px; padding: 30px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+            <h1 style="font-size: 32px; font-weight: bold; margin-bottom: 20px; text-align: center;">Our Solution</h1>
+            
+            <div style="display: flex; gap: 20px; margin-top: 30px;">
+                <div style="flex: 1;">
+                    <h2 style="font-size: 24px; margin-bottom: 15px; color: #f8f9fa;">Key Points</h2>
+                    <ul style="font-size: 18px; line-height: 1.6;">
+                        <li>AI-powered data unification platform</li>
+                        <li>90% reduction in data processing time</li>
+                        <li>Real-time insights and analytics</li>
+                    </ul>
+                </div>
+                
+                <div style="flex: 1; background: rgba(255,255,255,0.1); padding: 20px; border-radius: 8px;">
+                    <h3 style="font-size: 20px; margin-bottom: 10px; color: #f8f9fa;">Visual Elements</h3>
+                    <p style="font-size: 16px; line-height: 1.5;">Platform architecture diagram, before/after comparison of processing times, and dashboard mockup showing real-time analytics.</p>
+                </div>
+            </div>
+            
+            <div style="margin-top: 30px; padding: 15px; background: rgba(255,255,255,0.1); border-radius: 8px;">
+                <h3 style="font-size: 18px; margin-bottom: 10px; color: #f8f9fa;">Speaker Notes</h3>
+                <p style="font-size: 16px; line-height: 1.5;">Demonstrate how our platform transforms data management and delivers immediate value to organizations.</p>
+            </div>
+        </div>
+    </div>
+</body>
+</html>
+

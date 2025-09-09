@@ -7,7 +7,7 @@ export const openRouterConfig = {
     primary: 'meta-llama/llama-3.1-8b-instruct:free',
     fallback: 'google/gemma-2-9b-it:free',
     lightweight: 'deepseek/deepseek-r1-distill-llama-70b:free',
-    visual: 'google/gemini-2.5-flash-image-preview:free'
+    visual: 'moonshotai/kimi-k2:free'
   },
   maxTokens: 4000,
   temperature: 0.7

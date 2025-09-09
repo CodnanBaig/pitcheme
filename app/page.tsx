@@ -3,6 +3,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge"
 import { CheckCircle, Zap, FileText, PresentationIcon as PresentationChart, Clock, Star } from "lucide-react"
 import { AuthButton } from "@/components/auth-button"
+import { SmartCTAButton } from "@/components/smart-cta-button"
 import Link from "next/link"
 
 export default function LandingPage() {
@@ -50,9 +51,12 @@ export default function LandingPage() {
               secure funding for your business.
             </p>
             <div className="flex flex-col sm:flex-row gap-4 justify-center items-center mb-12">
-              <Button size="lg" className="bg-primary hover:bg-primary/90 text-primary-foreground px-8 py-3" asChild>
-                <Link href="/auth/signup">Start Creating Free</Link>
-              </Button>
+              <SmartCTAButton 
+                size="lg" 
+                className="bg-primary hover:bg-primary/90 text-primary-foreground px-8 py-3"
+              >
+                Start Creating Free
+              </SmartCTAButton>
               <Button variant="outline" size="lg" className="px-8 py-3 bg-transparent">
                 Watch Demo
               </Button>
@@ -355,9 +359,12 @@ export default function LandingPage() {
               decks.
             </p>
             <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
-              <Button size="lg" className="bg-primary hover:bg-primary/90 text-primary-foreground px-8 py-3">
+              <SmartCTAButton 
+                size="lg" 
+                className="bg-primary hover:bg-primary/90 text-primary-foreground px-8 py-3"
+              >
                 Start Creating Free
-              </Button>
+              </SmartCTAButton>
               <Button variant="outline" size="lg" className="px-8 py-3 bg-transparent">
                 Schedule Demo
               </Button>

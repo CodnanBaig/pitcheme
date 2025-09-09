@@ -29,6 +29,7 @@ export interface PitchDeckGenerationRequest {
   fieldSpecificData: Record<string, string | string[]>;
   modelPreference?: 'primary' | 'fallback' | 'lightweight' | 'visual';
   visualMode?: boolean;
+  exportFormat?: 'pdf' | 'html';
 }
 
 export class FieldSpecificAIService {
@@ -80,6 +81,11 @@ export class FieldSpecificAIService {
   }
 
   async generatePitchDeck(data: PitchDeckGenerationRequest): Promise<OpenRouterGenerationResponse> {
+    // Use PDF-optimized generation if PDF export is requested
+    if (data.exportFormat === 'pdf') {
+      return this.generatePDFOptimizedPitchDeck(data);
+    }
+    
     // Use visual model if requested or auto-detect if we want visual content
     if (data.visualMode || data.modelPreference === 'visual') {
       return this.generateVisualPitchDeck(data);
@@ -145,7 +151,7 @@ export class FieldSpecificAIService {
       const result = await generateText({
         model: openrouter(model),
         prompt,
-        maxTokens: 4000,
+        maxTokens: 6000, // Increased for visual content
         temperature: 0.7,
       });
 
@@ -163,6 +169,42 @@ export class FieldSpecificAIService {
         ...data,
         visualMode: false,
         modelPreference: 'primary'
+      });
+    }
+  }
+
+  async generatePDFOptimizedPitchDeck(data: PitchDeckGenerationRequest): Promise<OpenRouterGenerationResponse> {
+    const fieldConfig = getFieldConfiguration(data.field);
+    if (!fieldConfig) {
+      throw new Error(`Unknown field: ${data.field}`);
+    }
+
+    const model = selectModel('visual', 'complex'); // Use Kimi-K2 for visual content
+    const prompt = this.buildPDFOptimizedPitchDeckPrompt(data, fieldConfig);
+    
+    const startTime = Date.now();
+    
+    try {
+      const result = await generateText({
+        model: openrouter(model),
+        prompt,
+        maxTokens: 8000, // Higher limit for comprehensive PDF content
+        temperature: 0.7,
+      });
+
+      return {
+        content: result.text,
+        model,
+        tokensUsed: result.usage?.totalTokens || 0,
+        generationTime: Date.now() - startTime,
+        success: true
+      };
+    } catch (error) {
+      // Fallback to regular visual pitch deck generation if PDF-optimized fails
+      console.warn('PDF-optimized generation failed, falling back to visual generation:', error);
+      return this.generateVisualPitchDeck({
+        ...data,
+        exportFormat: 'html'
       });
     }
   }
@@ -241,7 +283,7 @@ Make it investor-focused, data-driven, and ${fieldConfig.id === 'technology' ? '
 
   private buildVisualPitchDeckPrompt(data: PitchDeckGenerationRequest, fieldConfig: any): string {
     const baseContext = `
-You are creating a compelling visual ${fieldConfig.name.toLowerCase()} pitch deck for investors that includes detailed visual descriptions and layouts.
+You are creating a compelling visual ${fieldConfig.name.toLowerCase()} pitch deck for investors using the MoonshotAI Kimi-K2 model. This will be exported as a professional PDF document.
 
 Startup Information:
 - Company: ${data.startupName}
@@ -254,38 +296,116 @@ Startup Information:
 - Funding Ask: ${data.funding || 'Seeking investment'}
 
 Industry Focus: ${fieldConfig.name}
-Presentation Style: Visual and engaging for investor presentations
+Presentation Style: Professional, visually engaging, PDF-ready format
 
 Field-Specific Data:
 ${Object.entries(data.fieldSpecificData).map(([key, value]) => `- ${key}: ${Array.isArray(value) ? value.join(', ') : value}`).join('\n')}
 
-Create a ${fieldConfig.workflows.pitchDeck.slides.length}-slide visual pitch deck with these slides:
+Create a ${fieldConfig.workflows.pitchDeck.slides.length}-slide visual pitch deck optimized for PDF export with these slides:
 ${fieldConfig.workflows.pitchDeck.slides.map((slide: string, index: number) => `**Slide ${index + 1}: ${slide}**`).join('\n')}
 
 For each slide, provide:
-1. **Slide Title**: A compelling, concise headline
-2. **Key Points**: 2-4 impactful bullet points with data/metrics when possible
-3. **Visual Layout**: Detailed description of the slide layout, including:
-   - Chart/graph types (bar charts, pie charts, line graphs, etc.)
-   - Image placements and types
-   - Color schemes and visual hierarchy
-   - Text positioning and sizing
-4. **Visual Elements**: Specific visual components like:
-   - Infographics and icons
-   - Data visualizations
-   - Product mockups or screenshots
-   - Team photos or company logos
-   - Before/after comparisons
+1. **Slide Title**: A compelling, concise headline (max 60 characters)
+2. **Key Points**: 2-4 impactful bullet points with specific data/metrics
+3. **Visual Layout**: Detailed description for PDF rendering:
+   - Chart/graph specifications (type, data points, colors)
+   - Image placement and sizing recommendations
+   - Color scheme (primary, secondary, accent colors)
+   - Typography hierarchy (headings, body text, captions)
+   - Layout structure (grid, columns, sections)
+4. **Visual Elements**: Specific components for PDF generation:
+   - Data visualization types (bar charts, pie charts, line graphs, infographics)
+   - Icon and graphic recommendations
+   - Product mockups or UI screenshots descriptions
+   - Team photos or company logo placement
+   - Before/after comparisons or process flows
 5. **Speaker Notes**: Compelling talking points for presentation
+6. **PDF Optimization**: Notes for clean PDF export:
+   - Font sizes and styles
+   - Spacing and margins
+   - Page breaks and layout considerations
 
-Focus on creating slides that are:
-- Visually engaging and investor-focused
-- Data-driven with clear metrics and evidence
-- Easy to understand at a glance
-- Professional and polished
-- ${fieldConfig.id === 'technology' ? 'technically credible with clear product demonstrations' : 'evidence-based with clear value propositions'}
+Focus on creating content that:
+- Translates well to PDF format
+- Is visually engaging and investor-focused
+- Contains clear, actionable data and metrics
+- Maintains professional appearance in print
+- ${fieldConfig.id === 'technology' ? 'Demonstrates technical credibility with clear product value' : 'Shows evidence-based value propositions with measurable impact'}
 
-Make each slide description detailed enough that a designer could recreate it visually.
+Format the output with clear HTML-like structure for easy PDF conversion.
+`;
+
+    return baseContext;
+  }
+
+  private buildPDFOptimizedPitchDeckPrompt(data: PitchDeckGenerationRequest, fieldConfig: any): string {
+    const baseContext = `
+You are creating a premium ${fieldConfig.name.toLowerCase()} pitch deck specifically optimized for PDF export using the MoonshotAI Kimi-K2 model. This will be a professional, print-ready document.
+
+Startup Information:
+- Company: ${data.startupName}
+- Tagline: ${data.tagline || 'Not specified'}
+- Problem: ${data.problem}
+- Solution: ${data.solution}
+- Market: ${data.market}
+- Business Model: ${data.businessModel || 'To be refined'}
+- Team: ${data.team || 'Strong founding team'}
+- Funding Ask: ${data.funding || 'Seeking investment'}
+
+Industry Focus: ${fieldConfig.name}
+Output Format: HTML-structured content optimized for PDF conversion
+
+Field-Specific Data:
+${Object.entries(data.fieldSpecificData).map(([key, value]) => `- ${key}: ${Array.isArray(value) ? value.join(', ') : value}`).join('\n')}
+
+Create a ${fieldConfig.workflows.pitchDeck.slides.length}-slide pitch deck with this exact HTML structure for each slide:
+
+<div class="slide" style="page-break-after: always; margin: 20px; padding: 30px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+  <h1 style="font-size: 32px; font-weight: bold; margin-bottom: 20px; text-align: center;">[SLIDE TITLE]</h1>
+  
+  <div style="display: flex; gap: 20px; margin-top: 30px;">
+    <div style="flex: 1;">
+      <h2 style="font-size: 24px; margin-bottom: 15px; color: #f8f9fa;">Key Points</h2>
+      <ul style="font-size: 18px; line-height: 1.6;">
+        <li>[Point 1 with specific data/metrics]</li>
+        <li>[Point 2 with specific data/metrics]</li>
+        <li>[Point 3 with specific data/metrics]</li>
+      </ul>
+    </div>
+    
+    <div style="flex: 1; background: rgba(255,255,255,0.1); padding: 20px; border-radius: 8px;">
+      <h3 style="font-size: 20px; margin-bottom: 10px; color: #f8f9fa;">Visual Elements</h3>
+      <p style="font-size: 16px; line-height: 1.5;">[Detailed visual description for charts, graphs, images]</p>
+    </div>
+  </div>
+  
+  <div style="margin-top: 30px; padding: 15px; background: rgba(255,255,255,0.1); border-radius: 8px;">
+    <h3 style="font-size: 18px; margin-bottom: 10px; color: #f8f9fa;">Speaker Notes</h3>
+    <p style="font-size: 16px; line-height: 1.5;">[Compelling talking points for presentation]</p>
+  </div>
+</div>
+
+For each slide, provide:
+1. **Slide Title**: Compelling headline (max 50 characters)
+2. **Key Points**: 3-4 bullet points with specific metrics/data
+3. **Visual Elements**: Detailed descriptions for:
+   - Data visualizations (charts, graphs, infographics)
+   - Product mockups or screenshots
+   - Team photos or company branding
+   - Process flows or comparisons
+4. **Speaker Notes**: Engaging talking points for presentation
+
+Slides to create:
+${fieldConfig.workflows.pitchDeck.slides.map((slide: string, index: number) => `**Slide ${index + 1}: ${slide}**`).join('\n')}
+
+Focus on creating content that:
+- Uses professional, investor-focused language
+- Includes specific, measurable data and metrics
+- Provides clear visual descriptions for PDF rendering
+- Maintains consistent styling and layout
+- ${fieldConfig.id === 'technology' ? 'Demonstrates technical innovation and market potential' : 'Shows evidence-based solutions and measurable impact'}
+
+Ensure each slide is self-contained and will render properly in PDF format.
 `;
 
     return baseContext;

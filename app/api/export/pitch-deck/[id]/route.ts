@@ -64,66 +64,128 @@ export async function GET(
         <meta charset="utf-8">
         <title>${pitchDeck.startupName} Pitch Deck</title>
         <style>
+          /* Global PDF-ready styles */
           body {
-            font-family: 'Arial', sans-serif;
+            font-family: 'Segoe UI', Arial, sans-serif;
+            color: #1A1A1A;
             margin: 0;
             padding: 0;
-            color: #333;
           }
           .slide {
-            width: 100vw;
-            height: 100vh;
-            padding: 60px;
+            width: 1000px;
+            height: 562px;
+            padding: 40px;
             box-sizing: border-box;
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
+            position: relative;
             page-break-after: always;
-            background: linear-gradient(135deg, #f0fdf4 0%, #ffffff 100%);
-            border-left: 8px solid #15803d;
           }
-          .slide:last-child {
-            page-break-after: avoid;
-          }
-          .slide h1 {
-            color: #15803d;
-            font-size: 48px;
-            margin-bottom: 30px;
-            text-align: center;
-          }
-          .slide h2 {
-            color: #15803d;
+          h1 {
             font-size: 36px;
-            margin-bottom: 40px;
-            text-align: center;
-            border-bottom: 3px solid #84cc16;
-            padding-bottom: 15px;
+            font-weight: 700;
+            color: #0B2B5B;
+            margin: 0 0 16px;
           }
-          .slide h3 {
-            color: #374151;
+          h2 {
             font-size: 28px;
-            margin-bottom: 30px;
-            text-align: center;
+            font-weight: 600;
+            color: #0B2B5B;
+            margin: 0 0 12px;
           }
-          .slide ul {
-            font-size: 24px;
-            line-height: 1.8;
-            list-style: none;
-            padding: 0;
+          h3 {
+            font-size: 22px;
+            font-weight: 600;
+            color: #0B2B5B;
+            margin: 0 0 8px;
           }
-          .slide li {
-            margin-bottom: 20px;
-            padding-left: 40px;
+          p, li {
+            font-size: 18px;
+            line-height: 26px;
+            margin: 0 0 6px;
+          }
+          .accent {
+            color: #0072FF;
+          }
+          .grid2 {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 32px;
+          }
+          .grid3 {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 24px;
+          }
+          
+          /* Kimi-K2 specific styles for PDF export */
+          .pitch-deck-slides .slide {
+            width: 100%;
+            max-width: 1000px;
+            margin: 0 auto 20px;
+            padding: 30px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            page-break-after: always;
             position: relative;
           }
-          .slide li:before {
-            content: "•";
-            color: #84cc16;
-            font-size: 30px;
-            position: absolute;
-            left: 0;
-            top: -5px;
+          
+          .pitch-deck-slides .slide:last-child {
+            page-break-after: avoid;
           }
+          
+          .pitch-deck-slides h1 {
+            font-size: 32px;
+            font-weight: bold;
+            margin-bottom: 20px;
+            text-align: center;
+            color: white;
+          }
+          
+          .pitch-deck-slides h2 {
+            font-size: 24px;
+            margin-bottom: 15px;
+            color: #f8f9fa;
+          }
+          
+          .pitch-deck-slides h3 {
+            font-size: 20px;
+            margin-bottom: 10px;
+            color: #f8f9fa;
+          }
+          
+          .pitch-deck-slides ul {
+            font-size: 18px;
+            line-height: 1.6;
+            margin: 0;
+            padding-left: 20px;
+          }
+          
+          .pitch-deck-slides li {
+            margin-bottom: 8px;
+          }
+          
+          .pitch-deck-slides p {
+            font-size: 16px;
+            line-height: 1.5;
+            margin: 0 0 10px 0;
+          }
+          
+          .pitch-deck-slides .visual-elements {
+            background: rgba(255,255,255,0.1);
+            padding: 20px;
+            border-radius: 8px;
+            margin-top: 20px;
+          }
+          
+          .pitch-deck-slides .speaker-notes {
+            background: rgba(255,255,255,0.1);
+            padding: 15px;
+            border-radius: 8px;
+            margin-top: 30px;
+          }
+          
+          /* Title slide styling */
           .title-slide {
             text-align: center;
             background: linear-gradient(135deg, #15803d 0%, #84cc16 100%);
@@ -147,6 +209,19 @@ export async function GET(
             color: #84cc16;
             font-weight: bold;
           }
+          
+          @media print {
+            .slide {
+              page-break-after: always;
+              margin: 0;
+              border-radius: 0;
+            }
+            .pitch-deck-slides .slide {
+              page-break-after: always;
+              margin: 0;
+              border-radius: 0;
+            }
+          }
         </style>
       </head>
       <body>
@@ -162,11 +237,12 @@ export async function GET(
       landscape: true,
       printBackground: true,
       margin: {
-        top: "0mm",
-        right: "0mm",
-        bottom: "0mm",
-        left: "0mm",
+        top: "10mm",
+        right: "10mm",
+        bottom: "10mm",
+        left: "10mm",
       },
+      preferCSSPageSize: true,
     })
 
     await browser.close()
@@ -183,7 +259,21 @@ export async function GET(
   }
 }
 
-function formatPitchDeckForPDF(content: string, startupName: string, tagline: string): string {
+function formatPitchDeckForPDF(content: string, startupName: string, tagline: string | null): string {
+  // Check if content is already in HTML format (from Kimi-K2 model)
+  if (content.includes('<div class="slide"')) {
+    // Content is already formatted for PDF - just add title slide
+    const titleSlide = `
+      <div class="slide title-slide">
+        <h1>${startupName}</h1>
+        <div class="tagline">${tagline || ''}</div>
+        <div class="slide-number">1</div>
+      </div>
+    `
+    return titleSlide + content
+  }
+
+  // Fallback to original parsing for legacy content
   const lines = content.split("\n")
   const slides: string[] = []
   let currentSlide = ""

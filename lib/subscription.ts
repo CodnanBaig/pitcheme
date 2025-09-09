@@ -28,6 +28,10 @@ export interface UsageRecord {
 }
 
 export async function getUserSubscription(userId: string): Promise<UserSubscription | null> {
+  if (!userId) {
+    throw new Error("User ID is required")
+  }
+
   let subscription = await prisma.userSubscription.findUnique({
     where: { userId }
   })
@@ -75,6 +79,10 @@ export async function updateUserSubscription(userId: string, updates: Partial<Us
 }
 
 export async function getUserUsage(userId: string): Promise<UsageRecord> {
+  if (!userId) {
+    throw new Error("User ID is required")
+  }
+
   const currentMonth = new Date().toISOString().slice(0, 7) // YYYY-MM
 
   let usage = await prisma.usage.findUnique({

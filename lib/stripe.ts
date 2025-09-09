@@ -1,13 +1,5 @@
-import Stripe from "stripe"
-
-if (!process.env.STRIPE_SECRET_KEY) {
-  throw new Error("STRIPE_SECRET_KEY is not set")
-}
-
-export const stripe = new Stripe(process.env.STRIPE_SECRET_KEY, {
-  apiVersion: "2024-11-20.acacia",
-  typescript: true,
-})
+// Stripe integration disabled. Keep plan metadata only.
+export const stripe = null as unknown as never
 
 export const STRIPE_PLANS = {
   FREE: {
@@ -23,7 +15,7 @@ export const STRIPE_PLANS = {
   PRO: {
     name: "Pro",
     price: 19,
-    priceId: process.env.STRIPE_PRO_PRICE_ID,
+    priceId: null,
     features: ["Unlimited proposals", "Unlimited pitch decks", "Premium templates", "Priority support"],
     limits: {
       proposals: -1, // unlimited
@@ -33,7 +25,7 @@ export const STRIPE_PLANS = {
   ENTERPRISE: {
     name: "Enterprise",
     price: 49,
-    priceId: process.env.STRIPE_ENTERPRISE_PRICE_ID,
+    priceId: null,
     features: ["Everything in Pro", "Custom branding", "Team collaboration", "Advanced analytics", "Dedicated support"],
     limits: {
       proposals: -1, // unlimited

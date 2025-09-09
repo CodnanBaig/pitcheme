@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useState } from 'react';
+import React, { useState, useId } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -13,6 +13,8 @@ import { useToast } from '@/hooks/use-toast';
 import { FieldSelector } from '@/components/field-selector';
 import { DynamicFormGenerator } from '@/components/dynamic-form-generator';
 import { getFieldConfiguration } from '@/lib/field-config';
+import { authenticatedJsonFetch, AuthApiError } from '@/lib/auth-api';
+import { useAuthSession } from '@/hooks/use-auth-session';
 
 interface PitchDeckFormData {
   startupName: string;
@@ -30,6 +32,7 @@ interface PitchDeckFormData {
 
 export function EnhancedPitchDeckForm() {
   const [step, setStep] = useState<'field' | 'form' | 'generation'>('field');
+  const formId = useId();
   const [formData, setFormData] = useState<PitchDeckFormData>({
     startupName: '',
     tagline: '',
@@ -46,6 +49,7 @@ export function EnhancedPitchDeckForm() {
   const [isGenerating, setIsGenerating] = useState(false);
   const router = useRouter();
   const { toast } = useToast();
+  const { isAuthenticated, refreshSession } = useAuthSession();
 
   const handleFieldSelect = (fieldId: string) => {
     setFormData(prev => ({ ...prev, field: fieldId }));
@@ -71,6 +75,16 @@ export function EnhancedPitchDeckForm() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
+    // Check authentication first
+    if (!isAuthenticated) {
+      toast({
+        title: "Authentication Required",
+        description: "Please sign in to generate a pitch deck.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     // Validate required fields
     if (!formData.startupName || !formData.problem || !formData.solution || !formData.market) {
       toast({
@@ -85,27 +99,48 @@ export function EnhancedPitchDeckForm() {
     setStep('generation');
 
     try {
-      const response = await fetch("/api/generate/pitch-deck", {
+      console.log("Submitting pitch deck generation request...");
+
+      const result = await authenticatedJsonFetch("/api/generate/pitch-deck", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
         body: JSON.stringify(formData),
       });
 
-      if (!response.ok) {
-        throw new Error("Failed to generate pitch deck");
-      }
+      console.log("Pitch deck generated successfully:", result);
 
-      const result = await response.json();
+      toast({
+        title: "Success!",
+        description: "Your pitch deck has been generated successfully.",
+      });
+
       router.push(`/pitch-deck/${result.id}`);
     } catch (error) {
       console.error("Error generating pitch deck:", error);
-      toast({
-        title: "Generation Failed",
-        description: "There was an error generating your pitch deck. Please try again.",
-        variant: "destructive",
-      });
+
+      if (error instanceof AuthApiError) {
+        if (error.status === 401) {
+          toast({
+            title: "Authentication Error",
+            description: "Your session has expired. Please sign in again.",
+            variant: "destructive",
+          });
+          // Try to refresh session
+          await refreshSession();
+        } else {
+          toast({
+            title: "Authentication Failed",
+            description: "Please sign in to continue.",
+            variant: "destructive",
+          });
+        }
+      } else {
+        toast({
+          title: "Generation Failed",
+          description: "There was an error generating your pitch deck. Please try again.",
+          variant: "destructive",
+        });
+      }
+
       setStep('form');
     } finally {
       setIsGenerating(false);
@@ -191,11 +226,11 @@ export function EnhancedPitchDeckForm() {
             <CardContent className="space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="startupName">
+                  <Label htmlFor={`${formId}-startupName`}>
                     Company Name <span className="text-destructive">*</span>
                   </Label>
                   <Input
-                    id="startupName"
+                    id={`${formId}-startupName`}
                     value={formData.startupName}
                     onChange={(e) => handleInputChange('startupName', e.target.value)}
                     placeholder="Enter your company name"
@@ -203,9 +238,9 @@ export function EnhancedPitchDeckForm() {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="tagline">Tagline</Label>
+                  <Label htmlFor={`${formId}-tagline`}>Tagline</Label>
                   <Input
-                    id="tagline"
+                    id={`${formId}-tagline`}
                     value={formData.tagline}
                     onChange={(e) => handleInputChange('tagline', e.target.value)}
                     placeholder="Brief company tagline or description"
@@ -222,11 +257,11 @@ export function EnhancedPitchDeckForm() {
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="problem">
+                <Label htmlFor={`${formId}-problem`}>
                   Problem Statement <span className="text-destructive">*</span>
                 </Label>
                 <Textarea
-                  id="problem"
+                  id={`${formId}-problem`}
                   value={formData.problem}
                   onChange={(e) => handleInputChange('problem', e.target.value)}
                   placeholder="What problem are you solving? Why is it important?"
@@ -235,11 +270,11 @@ export function EnhancedPitchDeckForm() {
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="solution">
+                <Label htmlFor={`${formId}-solution`}>
                   Solution <span className="text-destructive">*</span>
                 </Label>
                 <Textarea
-                  id="solution"
+                  id={`${formId}-solution`}
                   value={formData.solution}
                   onChange={(e) => handleInputChange('solution', e.target.value)}
                   placeholder="How does your product/service solve this problem?"
@@ -257,11 +292,11 @@ export function EnhancedPitchDeckForm() {
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="market">
+                <Label htmlFor={`${formId}-market`}>
                   Target Market <span className="text-destructive">*</span>
                 </Label>
                 <Textarea
-                  id="market"
+                  id={`${formId}-market`}
                   value={formData.market}
                   onChange={(e) => handleInputChange('market', e.target.value)}
                   placeholder="Describe your target market, size, and opportunity..."
@@ -270,9 +305,9 @@ export function EnhancedPitchDeckForm() {
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="businessModel">Business Model</Label>
+                <Label htmlFor={`${formId}-businessModel`}>Business Model</Label>
                 <Textarea
-                  id="businessModel"
+                  id={`${formId}-businessModel`}
                   value={formData.businessModel}
                   onChange={(e) => handleInputChange('businessModel', e.target.value)}
                   placeholder="How do you make money? Revenue streams, pricing model..."
@@ -289,9 +324,9 @@ export function EnhancedPitchDeckForm() {
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="team">Team</Label>
+                <Label htmlFor={`${formId}-team`}>Team</Label>
                 <Textarea
-                  id="team"
+                  id={`${formId}-team`}
                   value={formData.team}
                   onChange={(e) => handleInputChange('team', e.target.value)}
                   placeholder="Key team members, their roles and expertise..."
@@ -299,9 +334,9 @@ export function EnhancedPitchDeckForm() {
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="funding">Funding Ask</Label>
+                <Label htmlFor={`${formId}-funding`}>Funding Ask</Label>
                 <Input
-                  id="funding"
+                  id={`${formId}-funding`}
                   value={formData.funding}
                   onChange={(e) => handleInputChange('funding', e.target.value)}
                   placeholder="e.g., Seeking $2M Series A"
@@ -332,11 +367,11 @@ export function EnhancedPitchDeckForm() {
               <div className="text-center space-y-4">
                 {/* Visual Mode Toggle */}
                 <div className="flex items-center justify-center gap-3 mb-4">
-                  <Label htmlFor="visual-mode" className="text-sm font-medium">
+                  <Label htmlFor={`${formId}-visual-mode`} className="text-sm font-medium">
                     Create Visual Pitch Deck
                   </Label>
                   <Switch
-                    id="visual-mode"
+                    id={`${formId}-visual-mode`}
                     checked={formData.visualMode}
                     onCheckedChange={(checked) => setFormData(prev => ({ ...prev, visualMode: checked }))}
                   />

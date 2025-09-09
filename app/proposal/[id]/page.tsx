@@ -9,9 +9,9 @@ import Link from "next/link"
 import { prisma } from "@/lib/prisma"
 
 interface ProposalPageProps {
-  params: {
+  params: Promise<{
     id: string
-  }
+  }>
 }
 
 // Function to get proposal data from database
@@ -40,13 +40,14 @@ async function getProposal(id: string, userId: string) {
 }
 
 export default async function ProposalPage({ params }: ProposalPageProps) {
+  const resolvedParams = await params
   const session = await auth()
 
   if (!session) {
     redirect("/auth/signin")
   }
 
-  const proposal = await getProposal(params.id, session.user.id)
+  const proposal = await getProposal(resolvedParams.id, session.user.id)
 
   if (!proposal) {
     notFound()

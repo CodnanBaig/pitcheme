@@ -11,10 +11,14 @@ if (!process.env.DATABASE_URL) {
 
 export async function POST(request: NextRequest) {
   try {
+    console.log("Proposal generation request received")
+
     const session = await auth()
+    console.log("Session check:", { hasSession: !!session, userId: session?.user?.id })
 
     if (!session?.user?.id) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+      console.error("Unauthorized request - no valid session")
+      return NextResponse.json({ error: "Unauthorized - Please sign in again" }, { status: 401 })
     }
 
     const canGenerate = await canUserGenerate(session.user.id, "proposals")

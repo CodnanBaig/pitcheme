@@ -8,10 +8,94 @@ import { ArrowLeft, Share, Edit, PresentationIcon as PresentationChart, Zap } fr
 import Link from "next/link"
 import { prisma } from "@/lib/prisma"
 
-interface PitchDeckPageProps {
-  params: {
-    id: string
+// CSS styles for rendering Kimi-K2 generated HTML content
+const pitchDeckStyles = `
+  .pitch-deck-slides {
+    font-family: 'Segoe UI', Arial, sans-serif;
+    color: #1A1A1A;
   }
+  
+  .pitch-deck-slides .slide {
+    width: 100%;
+    max-width: 1000px;
+    margin: 20px auto;
+    padding: 30px;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    border-radius: 10px;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    page-break-after: always;
+    position: relative;
+  }
+  
+  .pitch-deck-slides .slide:last-child {
+    page-break-after: avoid;
+  }
+  
+  .pitch-deck-slides h1 {
+    font-size: 32px;
+    font-weight: bold;
+    margin-bottom: 20px;
+    text-align: center;
+    color: white;
+  }
+  
+  .pitch-deck-slides h2 {
+    font-size: 24px;
+    margin-bottom: 15px;
+    color: #f8f9fa;
+  }
+  
+  .pitch-deck-slides h3 {
+    font-size: 20px;
+    margin-bottom: 10px;
+    color: #f8f9fa;
+  }
+  
+  .pitch-deck-slides ul {
+    font-size: 18px;
+    line-height: 1.6;
+    margin: 0;
+    padding-left: 20px;
+  }
+  
+  .pitch-deck-slides li {
+    margin-bottom: 8px;
+  }
+  
+  .pitch-deck-slides p {
+    font-size: 16px;
+    line-height: 1.5;
+    margin: 0 0 10px 0;
+  }
+  
+  .pitch-deck-slides .visual-elements {
+    background: rgba(255,255,255,0.1);
+    padding: 20px;
+    border-radius: 8px;
+    margin-top: 20px;
+  }
+  
+  .pitch-deck-slides .speaker-notes {
+    background: rgba(255,255,255,0.1);
+    padding: 15px;
+    border-radius: 8px;
+    margin-top: 30px;
+  }
+  
+  @media print {
+    .pitch-deck-slides .slide {
+      page-break-after: always;
+      margin: 0;
+      border-radius: 0;
+    }
+  }
+`
+
+interface PitchDeckPageProps {
+  params: Promise<{
+    id: string
+  }>
 }
 
 // Function to get pitch deck data from database
@@ -39,13 +123,14 @@ async function getPitchDeck(id: string, userId: string) {
 }
 
 export default async function PitchDeckPage({ params }: PitchDeckPageProps) {
+  const resolvedParams = await params
   const session = await auth()
 
   if (!session) {
     redirect("/auth/signin")
   }
 
-  const pitchDeck = await getPitchDeck(params.id, session.user.id)
+  const pitchDeck = await getPitchDeck(resolvedParams.id, session.user.id)
 
   if (!pitchDeck) {
     notFound()
@@ -53,6 +138,9 @@ export default async function PitchDeckPage({ params }: PitchDeckPageProps) {
 
   return (
     <div className="min-h-screen bg-background">
+      {/* Add styles for pitch deck rendering */}
+      <style dangerouslySetInnerHTML={{ __html: pitchDeckStyles }} />
+      
       {/* Header */}
       <header className="border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 sticky top-0 z-50">
         <div className="container mx-auto px-4 sm:px-6 lg:px-8">
@@ -110,55 +198,68 @@ export default async function PitchDeckPage({ params }: PitchDeckPageProps) {
           <Card className="border-border bg-card">
             <CardContent className="pt-8">
               <div className="prose prose-gray max-w-none">
-                <div
-                  className="whitespace-pre-wrap text-foreground leading-relaxed"
-                  style={{
-                    fontFamily: "inherit",
-                    lineHeight: "1.7",
-                  }}
-                >
-                  {pitchDeck.content.split("\n").map((line, index) => {
-                    if (line.startsWith("# ")) {
+                {pitchDeck.content.includes('<div class="slide"') ? (
+                  // Render HTML content from Kimi-K2 model
+                  <div 
+                    className="pitch-deck-slides"
+                    dangerouslySetInnerHTML={{ __html: pitchDeck.content }}
+                    style={{
+                      fontFamily: "'Segoe UI', Arial, sans-serif",
+                      color: "#1A1A1A",
+                    }}
+                  />
+                ) : (
+                  // Fallback to text parsing for legacy content
+                  <div
+                    className="whitespace-pre-wrap text-foreground leading-relaxed"
+                    style={{
+                      fontFamily: "inherit",
+                      lineHeight: "1.7",
+                    }}
+                  >
+                    {pitchDeck.content.split("\n").map((line, index) => {
+                      if (line.startsWith("# ")) {
+                        return (
+                          <h1 key={index} className="text-3xl font-bold text-foreground mt-8 mb-4 first:mt-0">
+                            {line.replace("# ", "")}
+                          </h1>
+                        )
+                      }
+                      if (line.startsWith("## ")) {
+                        return (
+                          <div key={index} className="mt-8 mb-4 p-6 bg-accent/5 border-l-4 border-accent rounded-r-lg">
+                            <h2 className="text-2xl font-semibold text-foreground mb-2">{line.replace("## ", "")}</h2>
+                          </div>
+                        )
+                      }
+                      if (line.startsWith("**") && line.endsWith("**")) {
+                        return (
+                          <h3 key={index} className="text-xl font-semibold text-foreground mt-4 mb-3">
+                            {line.replace(/\*\*/g, "")}
+                          </h3>
+                        )
+                      }
+                      if (line.startsWith("• ")) {
+                        return (
+                          <li key={index} className="text-foreground mb-2 ml-4 list-disc">
+                            {line.replace("• ", "")}
+                          </li>
+                        )
+                      }
+                      if (line.startsWith("---")) {
+                        return <hr key={index} className="my-8 border-border" />
+                      }
+                      if (line.trim() === "") {
+                        return <br key={index} />
+                      }
                       return (
-                        <h1 key={index} className="text-3xl font-bold text-foreground mt-8 mb-4 first:mt-0">
-                          {line.replace("# ", "")}
-                        </h1>
+                        <p key={index} className="text-foreground mb-3">
+                          {line}
+                        </p>
                       )
-                    }
-                    if (line.startsWith("## ")) {
-                      return (
-                        <div key={index} className="mt-8 mb-4 p-6 bg-accent/5 border-l-4 border-accent rounded-r-lg">
-                          <h2 className="text-2xl font-semibold text-foreground mb-2">{line.replace("## ", "")}</h2>
-                        </div>
-                      )
-                    }
-                    if (line.startsWith("**") && line.endsWith("**")) {
-                      return (
-                        <h3 key={index} className="text-xl font-semibold text-foreground mt-4 mb-3">
-                          {line.replace(/\*\*/g, "")}
-                        </h3>
-                      )
-                    }
-                    if (line.startsWith("• ")) {
-                      return (
-                        <li key={index} className="text-foreground mb-2 ml-4 list-disc">
-                          {line.replace("• ", "")}
-                        </li>
-                      )
-                    }
-                    if (line.startsWith("---")) {
-                      return <hr key={index} className="my-8 border-border" />
-                    }
-                    if (line.trim() === "") {
-                      return <br key={index} />
-                    }
-                    return (
-                      <p key={index} className="text-foreground mb-3">
-                        {line}
-                      </p>
-                    )
-                  })}
-                </div>
+                    })}
+                  </div>
+                )}
               </div>
             </CardContent>
           </Card>

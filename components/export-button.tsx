@@ -20,7 +20,9 @@ export function ExportButton({ documentId, documentType, documentTitle }: Export
     setIsExporting(true)
 
     try {
-      const response = await fetch(`/api/export/${documentType}/${documentId}?format=${format}`)
+      const response = await fetch(`/api/export/${documentType}/${documentId}?format=${format}`, {
+        credentials: "include"
+      })
 
       if (!response.ok) {
         throw new Error("Export failed")

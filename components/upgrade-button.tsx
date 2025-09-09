@@ -18,45 +18,14 @@ export function UpgradeButton({ planType, className, children }: UpgradeButtonPr
   const plan = STRIPE_PLANS[planType]
 
   const handleUpgrade = async () => {
-    if (planType === "FREE") return
-
-    setLoading(true)
-    try {
-      const response = await fetch("/api/stripe/create-checkout", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          priceId: plan.priceId,
-          planType,
-        }),
-      })
-
-      const data = await response.json()
-
-      if (data.url) {
-        window.location.href = data.url
-      }
-    } catch (error) {
-      console.error("Error:", error)
-    } finally {
-      setLoading(false)
-    }
+    // Stripe disabled: no-op
+    return
   }
 
-  if (planType === "FREE") {
-    return (
-      <Button variant="outline" className={className} disabled>
-        Current Plan
-      </Button>
-    )
-  }
-
+  // Show disabled state since billing is not available
   return (
-    <Button onClick={handleUpgrade} disabled={loading} className={className}>
-      {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-      {children || `Upgrade to ${plan.name}`}
+    <Button variant="outline" className={className} disabled>
+      Billing disabled
     </Button>
   )
 }

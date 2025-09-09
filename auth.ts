@@ -1,5 +1,6 @@
 import NextAuth from "next-auth"
 import CredentialsProvider from "next-auth/providers/credentials"
+import EmailProvider from "next-auth/providers/email"
 import { PrismaAdapter } from "@next-auth/prisma-adapter"
 import { getServerSession } from "next-auth"
 import { prisma } from "@/lib/prisma"
@@ -17,6 +18,19 @@ if (!process.env.NEXTAUTH_SECRET) {
 export const authOptions = {
   adapter: PrismaAdapter(prisma),
   providers: [
+    // Email magic link provider (primary authentication method)
+    EmailProvider({
+      server: {
+        host: process.env.EMAIL_SERVER_HOST,
+        port: parseInt(process.env.EMAIL_SERVER_PORT || "587"),
+        auth: {
+          user: process.env.EMAIL_SERVER_USER,
+          pass: process.env.EMAIL_SERVER_PASSWORD,
+        },
+      },
+      from: process.env.EMAIL_FROM || "noreply@pitchme.com",
+    }),
+    // Credentials provider as fallback for password-based auth
     CredentialsProvider({
       name: "credentials",
       credentials: {
@@ -54,7 +68,12 @@ export const authOptions = {
     }),
   ],
   session: {
-    strategy: "jwt",
+    strategy: "database" as const, // Use database sessions for better persistence
+    maxAge: 30 * 24 * 60 * 60, // 30 days
+    updateAge: 24 * 60 * 60, // 24 hours
+  },
+  jwt: {
+    maxAge: 30 * 24 * 60 * 60, // 30 days
   },
   pages: {
     signIn: "/auth/signin",
@@ -63,20 +82,29 @@ export const authOptions = {
     verifyRequest: "/auth/verify-request",
   },
   callbacks: {
-    async session({ session, token }: any) {
-      if (session.user && token) {
-        session.user.id = token.id as string
+    async session({ session, user }) {
+      if (user) {
+        session.user.id = user.id
       }
       return session
     },
-    async jwt({ token, user }: any) {
+    async jwt({ token, user }) {
       if (user) {
         token.id = user.id
       }
       return token
     },
   },
+  events: {
+    async signIn({ user, account, isNewUser }) {
+      console.log("User signed in:", { user, account, isNewUser })
+    },
+    async signOut() {
+      console.log("User signed out")
+    },
+  },
   secret: process.env.NEXTAUTH_SECRET,
+  debug: process.env.NODE_ENV === "development",
 }
 
 export const auth = () => getServerSession(authOptions)
