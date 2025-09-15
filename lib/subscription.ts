@@ -141,7 +141,8 @@ export async function canUserGenerate(userId: string, type: "proposals" | "pitch
   const subscription = await getUserSubscription(userId)
   const usage = await getUserUsage(userId)
 
-  const plan = STRIPE_PLANS[subscription.plan]
+  const planKey = (subscription?.plan) || "FREE"
+  const plan = STRIPE_PLANS[planKey]
   const limit = plan.limits[type]
 
   // Unlimited usage

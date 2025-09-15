@@ -81,14 +81,30 @@ export default async function DashboardPage() {
         recentDocuments={[]}
         stats={{ totalDocuments: 0, thisMonth: 0, successRate: 0 }}
         subscription={null}
-        usage={{ userId: session.user.id, month: new Date().toISOString().slice(0, 7), proposals: 0, pitchDecks: 0 }}
+        usage={{ proposals: 0, pitchDecks: 0 }}
       />
     )
   }
 }
 
 // Separate component to keep the JSX clean
-function DashboardContent({ session, recentDocuments, stats, subscription, usage }: any) {
+type DashboardDocument = {
+  id: string
+  type: string
+  clientName: string | null
+  projectTitle: string | null
+  createdAt: Date | string
+}
+
+type DashboardContentProps = {
+  session: any
+  recentDocuments: DashboardDocument[]
+  stats: { totalDocuments: number; thisMonth: number; successRate: number }
+  subscription: { plan?: string } | null
+  usage: { proposals: number; pitchDecks: number }
+}
+
+function DashboardContent({ session, recentDocuments, stats, subscription, usage }: DashboardContentProps) {
   return (
     <div className="min-h-screen bg-background">
       {/* Header */}
@@ -241,7 +257,7 @@ function DashboardContent({ session, recentDocuments, stats, subscription, usage
               <CardContent>
                 {recentDocuments.length > 0 ? (
                   <div className="space-y-4">
-                    {recentDocuments.map((doc) => (
+                    {recentDocuments.map((doc: DashboardDocument) => (
                       <div
                         key={doc.id}
                         className="flex items-center justify-between p-4 border border-border rounded-lg hover:bg-muted/50 transition-colors"

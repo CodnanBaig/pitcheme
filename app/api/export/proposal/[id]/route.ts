@@ -39,7 +39,7 @@ export async function GET(request: NextRequest, props: { params: Promise<{ id: s
   try {
     const session = await auth()
 
-    if (!session) {
+    if (!session || !session.user || !session.user.id) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
@@ -147,10 +147,10 @@ export async function GET(request: NextRequest, props: { params: Promise<{ id: s
 
       await browser.close()
 
-      return new NextResponse(pdf, {
+      return new NextResponse(new Uint8Array(pdf), {
         headers: {
           "Content-Type": "application/pdf",
-          "Content-Disposition": `attachment; filename="${proposal.projectTitle.replace(/[^a-z0-9]/gi, "_")}.pdf"`,
+          "Content-Disposition": `attachment; filename="${(proposal.projectTitle || "proposal").replace(/[^a-z0-9]/gi, "_")}.pdf"`,
         },
       })
     } else if (format === "docx") {
@@ -166,10 +166,10 @@ export async function GET(request: NextRequest, props: { params: Promise<{ id: s
 
       const buffer = await Packer.toBuffer(doc)
 
-      return new NextResponse(buffer, {
+      return new NextResponse(new Uint8Array(buffer), {
         headers: {
           "Content-Type": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-          "Content-Disposition": `attachment; filename="${proposal.projectTitle.replace(/[^a-z0-9]/gi, "_")}.docx"`,
+          "Content-Disposition": `attachment; filename="${(proposal.projectTitle || "proposal").replace(/[^a-z0-9]/gi, "_")}.docx"`,
         },
       })
     }

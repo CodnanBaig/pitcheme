@@ -17,7 +17,8 @@ export default async function BillingPage() {
 
   const subscription = await getUserSubscription(session.user.id)
   const usage = await getUserUsage(session.user.id)
-  const plan = STRIPE_PLANS[subscription.plan]
+  const planKey = (subscription?.plan) || "FREE"
+  const plan = STRIPE_PLANS[planKey]
 
   return (
     <div className="container mx-auto px-4 py-8 max-w-4xl">
@@ -32,10 +33,10 @@ export default async function BillingPage() {
           <CardHeader>
             <CardTitle className="flex items-center justify-between">
               Current Plan
-              <Badge variant={subscription.plan === "FREE" ? "secondary" : "default"}>{plan.name}</Badge>
+              <Badge variant={planKey === "FREE" ? "secondary" : "default"}>{plan.name}</Badge>
             </CardTitle>
             <CardDescription>
-              {subscription.plan === "FREE" ? "You are on the free plan" : `$${plan.price}/month`}
+              {planKey === "FREE" ? "You are on the free plan" : `$${plan.price}/month`}
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -48,16 +49,16 @@ export default async function BillingPage() {
               ))}
             </div>
 
-            {subscription.plan !== "FREE" && (
+            {planKey !== "FREE" && (
               <div className="mt-4 pt-4 border-t">
                 <div className="text-sm text-gray-600">
                   <p>
-                    Status: <span className="capitalize font-medium">{subscription.status}</span>
+                    Status: <span className="capitalize font-medium">{subscription?.status || "active"}</span>
                   </p>
-                  {subscription.currentPeriodEnd && (
+                  {subscription?.currentPeriodEnd && (
                     <p>Next billing: {subscription.currentPeriodEnd.toLocaleDateString()}</p>
                   )}
-                  {subscription.cancelAtPeriodEnd && <p className="text-orange-600">Cancels at period end</p>}
+                  {subscription?.cancelAtPeriodEnd && <p className="text-orange-600">Cancels at period end</p>}
                 </div>
               </div>
             )}
@@ -103,7 +104,7 @@ export default async function BillingPage() {
               />
             </div>
 
-            {subscription.plan === "FREE" && (
+            {planKey === "FREE" && (
               <div className="mt-4 p-3 bg-blue-50 rounded-lg">
                 <p className="text-sm text-blue-800">
                   Upgrade to Pro for unlimited document generation and premium features.

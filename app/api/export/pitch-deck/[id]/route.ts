@@ -38,7 +38,7 @@ export async function GET(
   try {
     const session = await auth()
 
-    if (!session) {
+    if (!session || !session.user || !session.user.id) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
@@ -225,7 +225,7 @@ export async function GET(
         </style>
       </head>
       <body>
-        ${formatPitchDeckForPDF(pitchDeck.content, pitchDeck.startupName, pitchDeck.tagline)}
+        ${formatPitchDeckForPDF(pitchDeck.content, pitchDeck.startupName || "", pitchDeck.tagline)}
       </body>
       </html>
     `
@@ -247,10 +247,10 @@ export async function GET(
 
     await browser.close()
 
-    return new NextResponse(pdf, {
+    return new NextResponse(new Uint8Array(pdf), {
       headers: {
         "Content-Type": "application/pdf",
-        "Content-Disposition": `attachment; filename="${pitchDeck.startupName.replace(/[^a-z0-9]/gi, "_")}_pitch_deck.pdf"`,
+        "Content-Disposition": `attachment; filename="${(pitchDeck.startupName || "").replace(/[^a-z0-9]/gi, "_")}_pitch_deck.pdf"`,
       },
     })
   } catch (error) {

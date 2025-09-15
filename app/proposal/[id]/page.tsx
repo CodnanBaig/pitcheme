@@ -82,7 +82,7 @@ export default async function ProposalPage({ params }: ProposalPageProps) {
                 <Edit className="w-4 h-4 mr-2" />
                 Edit
               </Button>
-              <ExportButton documentId={proposal.id} documentType="proposal" documentTitle={proposal.projectTitle} />
+              <ExportButton documentId={proposal.id} documentType="proposal" documentTitle={proposal.projectTitle || "Proposal"} />
             </div>
           </div>
         </div>
@@ -177,7 +177,7 @@ export default async function ProposalPage({ params }: ProposalPageProps) {
               <Edit className="w-4 h-4 mr-2" />
               Edit Proposal
             </Button>
-            <ExportButton documentId={proposal.id} documentType="proposal" documentTitle={proposal.projectTitle} />
+            <ExportButton documentId={proposal.id} documentType="proposal" documentTitle={proposal.projectTitle || "Proposal"} />
           </div>
         </div>
       </div>

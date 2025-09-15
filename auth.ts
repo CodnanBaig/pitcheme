@@ -1,4 +1,5 @@
 import NextAuth from "next-auth"
+import type { NextAuthOptions, Account, Profile, User } from "next-auth"
 import CredentialsProvider from "next-auth/providers/credentials"
 import EmailProvider from "next-auth/providers/email"
 import { PrismaAdapter } from "@next-auth/prisma-adapter"
@@ -15,7 +16,7 @@ if (!process.env.NEXTAUTH_SECRET) {
   throw new Error("NEXTAUTH_SECRET environment variable is required")
 }
 
-export const authOptions = {
+export const authOptions: NextAuthOptions = {
   adapter: PrismaAdapter(prisma),
   providers: [
     // Email magic link provider (primary authentication method)
@@ -96,7 +97,8 @@ export const authOptions = {
     },
   },
   events: {
-    async signIn({ user, account, isNewUser }) {
+    async signIn(message: { user: User; account: Account | null; profile?: Profile; isNewUser?: boolean }) {
+      const { user, account, isNewUser } = message
       console.log("User signed in:", { user, account, isNewUser })
     },
     async signOut() {
@@ -109,7 +111,7 @@ export const authOptions = {
 
 export const auth = () => getServerSession(authOptions)
 
-export const signIn = async (provider?: string, options?: any) => {
+export const signIn = async (_provider?: string, _options?: Record<string, unknown>) => {
   // This is a placeholder - actual signIn should be imported from next-auth/react on client
   throw new Error("signIn should be imported from next-auth/react on client side")
 }

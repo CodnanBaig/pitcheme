@@ -49,7 +49,15 @@ export default async function DocumentsPage() {
 }
 
 // Separate component to keep the JSX clean
-function DocumentsContent({ session, documents }: any) {
+type DocumentsListItem = {
+  id: string
+  type: string
+  clientName: string | null
+  projectTitle: string | null
+  createdAt: Date | string
+}
+
+function DocumentsContent({ session, documents }: { session: any; documents: DocumentsListItem[] }) {
   return (
     <div className="min-h-screen bg-background">
       {/* Header */}
@@ -133,7 +141,7 @@ function DocumentsContent({ session, documents }: any) {
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
-              {documents.map((doc) => (
+              {documents.map((doc: DocumentsListItem) => (
                 <div
                   key={doc.id}
                   className="flex items-center justify-between p-4 border border-border rounded-lg hover:bg-muted/50 transition-colors"
