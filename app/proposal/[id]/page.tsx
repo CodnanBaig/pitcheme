@@ -118,7 +118,7 @@ export default async function ProposalPage({ params }: ProposalPageProps) {
                     lineHeight: "1.7",
                   }}
                 >
-                  {proposal.content.split("\n").map((line, index) => {
+                  {proposal.content.split("\n").map((line: string, index: number) => {
                     if (line.startsWith("# ")) {
                       return (
                         <h1 key={index} className="text-3xl font-bold text-foreground mt-8 mb-4 first:mt-0">
