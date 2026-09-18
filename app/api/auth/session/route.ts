@@ -14,7 +14,9 @@ export async function GET() {
       expires: session.expires
     })
   } catch (error) {
-    console.error("Session check error:", error)
+    console.error("Session check error", {
+      error: error instanceof Error ? error.name : "unknown",
+    })
     return NextResponse.json({ error: "Session check failed" }, { status: 500 })
   }
 }
@@ -34,8 +36,9 @@ export async function POST() {
       refreshed: true
     })
   } catch (error) {
-    console.error("Session refresh error:", error)
+    console.error("Session refresh error", {
+      error: error instanceof Error ? error.name : "unknown",
+    })
     return NextResponse.json({ error: "Session refresh failed" }, { status: 500 })
   }
 }
-

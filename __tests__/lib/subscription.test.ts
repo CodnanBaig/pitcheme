@@ -1,38 +1,58 @@
 // Mock dependencies
+import { Prisma } from '@prisma/client'
+
+process.env.STRIPE_PRO_PRICE_ID = 'price_test_pro'
+process.env.STRIPE_ENTERPRISE_PRICE_ID = 'price_test_enterprise'
+
 const mockGetUserSubscription = jest.fn()
 const mockUpdateUserSubscription = jest.fn()
 const mockGetUsage = jest.fn()
 const mockIncrementUsage = jest.fn()
 const mockCanUserGenerate = jest.fn()
-const mockPrismaUserSubscriptionFindUnique = jest.fn()
-const mockPrismaUserSubscriptionCreate = jest.fn()
-const mockPrismaUserSubscriptionUpsert = jest.fn()
-const mockPrismaUsageFindUnique = jest.fn()
-const mockPrismaUsageCreate = jest.fn()
-const mockPrismaUsageUpsert = jest.fn()
-
 jest.mock('@/lib/prisma', () => ({
-  userSubscription: {
-    findUnique: mockPrismaUserSubscriptionFindUnique,
-    create: mockPrismaUserSubscriptionCreate,
-    upsert: mockPrismaUserSubscriptionUpsert,
-  },
-  usage: {
-    findUnique: mockPrismaUsageFindUnique,
-    create: mockPrismaUsageCreate,
-    upsert: mockPrismaUsageUpsert,
+  prisma: {
+    userSubscription: {
+      findUnique: jest.fn(),
+      create: jest.fn(),
+      upsert: jest.fn(),
+    },
+    usage: {
+      findUnique: jest.fn(),
+      create: jest.fn(),
+      updateMany: jest.fn(),
+      upsert: jest.fn(),
+    },
   },
 }))
 
+import { prisma } from '@/lib/prisma'
 import { 
   getUserSubscription, 
   updateUserSubscription, 
   getUserUsage, 
   incrementUsage, 
-  canUserGenerate 
+  reserveUsage,
+  releaseUsage,
+  canUserGenerate,
+  syncStripeSubscription,
 } from '@/lib/subscription'
 
+const mockPrismaUserSubscriptionFindUnique = prisma.userSubscription.findUnique as jest.MockedFunction<typeof prisma.userSubscription.findUnique>
+const mockPrismaUserSubscriptionCreate = prisma.userSubscription.create as jest.MockedFunction<typeof prisma.userSubscription.create>
+const mockPrismaUserSubscriptionUpsert = prisma.userSubscription.upsert as jest.MockedFunction<typeof prisma.userSubscription.upsert>
+const mockPrismaUsageFindUnique = prisma.usage.findUnique as jest.MockedFunction<typeof prisma.usage.findUnique>
+const mockPrismaUsageCreate = prisma.usage.create as jest.MockedFunction<typeof prisma.usage.create>
+const mockPrismaUsageUpdateMany = prisma.usage.updateMany as jest.MockedFunction<typeof prisma.usage.updateMany>
+const mockPrismaUsageUpsert = prisma.usage.upsert as jest.MockedFunction<typeof prisma.usage.upsert>
+
 describe('Subscription Management', () => {
+  function uniqueConstraintError() {
+    return new Prisma.PrismaClientKnownRequestError('duplicate key', {
+      code: 'P2002',
+      clientVersion: 'test',
+    })
+  }
+
   beforeEach(() => {
     jest.clearAllMocks()
   })
@@ -98,6 +118,23 @@ describe('Subscription Management', () => {
       mockPrismaUserSubscriptionFindUnique.mockRejectedValue(new Error('Database error'))
 
       await expect(getUserSubscription('user-123')).rejects.toThrow('Database error')
+    })
+
+    it('re-reads a subscription after a concurrent initialization race', async () => {
+      const subscription = {
+        userId: 'user-123',
+        plan: 'FREE',
+        status: 'active',
+        createdAt: new Date('2023-01-01'),
+        updatedAt: new Date('2023-01-01'),
+      }
+      mockPrismaUserSubscriptionFindUnique
+        .mockResolvedValueOnce(null)
+        .mockResolvedValueOnce(subscription as never)
+      mockPrismaUserSubscriptionCreate.mockRejectedValue(uniqueConstraintError())
+
+      await expect(getUserSubscription('user-123')).resolves.toMatchObject({ plan: 'FREE' })
+      expect(mockPrismaUserSubscriptionFindUnique).toHaveBeenCalledTimes(2)
     })
   })
 
@@ -167,6 +204,65 @@ describe('Subscription Management', () => {
     })
   })
 
+  describe('Stripe synchronization', () => {
+    const subscription = {
+      id: 'sub_test',
+      customer: 'cus_test',
+      status: 'active',
+      items: { data: [{ price: { id: 'price_test_pro' } }] },
+      current_period_start: 1_735_689_600,
+      current_period_end: 1_738_368_000,
+      cancel_at_period_end: false,
+    }
+
+    it('maps a known Stripe price to the paid plan and persists the state', async () => {
+      await expect(syncStripeSubscription('user-123', subscription as never)).resolves.toBe('PRO')
+
+      expect(mockPrismaUserSubscriptionUpsert).toHaveBeenCalledWith({
+        where: { userId: 'user-123' },
+        update: expect.objectContaining({
+          stripeCustomerId: 'cus_test',
+          stripeSubscriptionId: 'sub_test',
+          stripePriceId: 'price_test_pro',
+          plan: 'PRO',
+          status: 'active',
+          cancelAtPeriodEnd: false,
+          updatedAt: expect.any(Date),
+        }),
+        create: expect.objectContaining({
+          userId: 'user-123',
+          plan: 'PRO',
+          status: 'active',
+        }),
+      })
+    })
+
+    it('does not grant access for an unknown Stripe price', async () => {
+      await expect(syncStripeSubscription('user-123', {
+        ...subscription,
+        items: { data: [{ price: { id: 'price_unknown' } }] },
+      } as never)).resolves.toBeNull()
+
+      expect(mockPrismaUserSubscriptionUpsert).not.toHaveBeenCalled()
+    })
+
+    it('persists cancellation while leaving access inactive', async () => {
+      await expect(syncStripeSubscription('user-123', {
+        ...subscription,
+        status: 'canceled',
+        cancel_at_period_end: true,
+      } as never)).resolves.toBe('PRO')
+
+      expect(mockPrismaUserSubscriptionUpsert).toHaveBeenCalledWith(expect.objectContaining({
+        update: expect.objectContaining({
+          plan: 'PRO',
+          status: 'canceled',
+          cancelAtPeriodEnd: true,
+        }),
+      }))
+    })
+  })
+
   describe('getUserUsage', () => {
     const currentMonth = new Date().toISOString().slice(0, 7)
 
@@ -215,6 +311,17 @@ describe('Subscription Management', () => {
           pitchDecks: 0
         }
       })
+    })
+
+    it('re-reads usage after a concurrent monthly initialization race', async () => {
+      const usage = { userId: 'user-123', month: currentMonth, proposals: 1, pitchDecks: 0 }
+      mockPrismaUsageFindUnique
+        .mockResolvedValueOnce(null)
+        .mockResolvedValueOnce(usage)
+      mockPrismaUsageCreate.mockRejectedValue(uniqueConstraintError())
+
+      await expect(getUserUsage('user-123')).resolves.toEqual(usage)
+      expect(mockPrismaUsageFindUnique).toHaveBeenCalledTimes(2)
     })
   })
 
@@ -271,52 +378,119 @@ describe('Subscription Management', () => {
   })
 
   describe('canUserGenerate', () => {
-    beforeEach(() => {
-      // Mock the functions that canUserGenerate depends on
-      jest.doMock('@/lib/subscription', () => ({
-        ...jest.requireActual('@/lib/subscription'),
-        getUserSubscription: mockGetUserSubscription,
-        getUserUsage: mockGetUsage
-      }))
-    })
-
     it('should allow generation for unlimited plan', async () => {
-      mockGetUserSubscription.mockResolvedValue({
+      mockPrismaUserSubscriptionFindUnique.mockResolvedValue({
+        userId: 'user-123',
         plan: 'PRO',
-        status: 'active'
-      })
-      mockGetUsage.mockResolvedValue({
+        status: 'active',
+        createdAt: new Date('2026-01-01'),
+        updatedAt: new Date('2026-01-01'),
+      } as never)
+      mockPrismaUsageFindUnique.mockResolvedValue({
+        userId: 'user-123',
+        month: new Date().toISOString().slice(0, 7),
         proposals: 100,
-        pitchDecks: 50
+        pitchDecks: 50,
       })
 
-      // Re-import to get the mocked version
-      const { canUserGenerate: mockCanGenerate } = require('@/lib/subscription')
-      
-      // Since PRO plan has unlimited usage (-1), it should always return true
-      // We'll test this indirectly by checking the plan limits
-      const proLimits = require('@/lib/stripe').STRIPE_PLANS.PRO.limits
-      expect(proLimits.proposals).toBe(-1)
-      expect(proLimits.pitchDecks).toBe(-1)
+      await expect(canUserGenerate('user-123', 'proposals')).resolves.toBe(true)
     })
 
     it('should block generation when limit exceeded for free plan', async () => {
-      // Free plan limits
-      const freeLimits = require('@/lib/stripe').STRIPE_PLANS.FREE.limits
-      expect(freeLimits.proposals).toBe(5)
-      expect(freeLimits.pitchDecks).toBe(3)
-      
-      // Test that limits are properly defined
-      expect(freeLimits.proposals).toBeGreaterThan(0)
-      expect(freeLimits.pitchDecks).toBeGreaterThan(0)
+      mockPrismaUserSubscriptionFindUnique.mockResolvedValue({
+        userId: 'user-123',
+        plan: 'FREE',
+        status: 'active',
+        createdAt: new Date('2026-01-01'),
+        updatedAt: new Date('2026-01-01'),
+      } as never)
+      mockPrismaUsageFindUnique.mockResolvedValue({
+        userId: 'user-123',
+        month: new Date().toISOString().slice(0, 7),
+        proposals: 5,
+        pitchDecks: 0,
+      })
+
+      await expect(canUserGenerate('user-123', 'proposals')).resolves.toBe(false)
     })
 
     it('should allow generation when under limit for free plan', async () => {
-      const freeLimits = require('@/lib/stripe').STRIPE_PLANS.FREE.limits
-      
-      // Verify free plan has reasonable limits
-      expect(freeLimits.proposals).toBeGreaterThanOrEqual(3)
-      expect(freeLimits.pitchDecks).toBeGreaterThanOrEqual(2)
+      mockPrismaUserSubscriptionFindUnique.mockResolvedValue({
+        userId: 'user-123',
+        plan: 'FREE',
+        status: 'active',
+        createdAt: new Date('2026-01-01'),
+        updatedAt: new Date('2026-01-01'),
+      } as never)
+      mockPrismaUsageFindUnique.mockResolvedValue({
+        userId: 'user-123',
+        month: new Date().toISOString().slice(0, 7),
+        proposals: 4,
+        pitchDecks: 0,
+      })
+
+      await expect(canUserGenerate('user-123', 'proposals')).resolves.toBe(true)
+    })
+
+    it('treats a canceled paid plan as free for usage access', async () => {
+      mockPrismaUserSubscriptionFindUnique.mockResolvedValue({
+        userId: 'user-123',
+        plan: 'PRO',
+        status: 'canceled',
+        createdAt: new Date('2026-01-01'),
+        updatedAt: new Date('2026-01-01'),
+      } as never)
+      mockPrismaUsageFindUnique.mockResolvedValue({
+        userId: 'user-123',
+        month: new Date().toISOString().slice(0, 7),
+        proposals: 5,
+        pitchDecks: 0,
+      })
+
+      await expect(canUserGenerate('user-123', 'proposals')).resolves.toBe(false)
+    })
+  })
+
+  describe('shared usage reservations', () => {
+    const currentMonth = new Date().toISOString().slice(0, 7)
+    const freeSubscription = {
+      userId: 'user-123',
+      plan: 'FREE',
+      status: 'active',
+      createdAt: new Date('2026-01-01'),
+      updatedAt: new Date('2026-01-01'),
+    }
+
+    it('reserves a finite-plan generation with a conditional update', async () => {
+      mockPrismaUserSubscriptionFindUnique.mockResolvedValue(freeSubscription as never)
+      mockPrismaUsageUpdateMany.mockResolvedValue({ count: 1 })
+
+      await expect(reserveUsage('user-123', 'proposals')).resolves.toBe(true)
+
+      expect(mockPrismaUsageUpdateMany).toHaveBeenCalledWith({
+        where: {
+          userId: 'user-123',
+          month: currentMonth,
+          proposals: { lt: 5 },
+        },
+        data: { proposals: { increment: 1 } },
+      })
+      expect(mockPrismaUsageCreate).not.toHaveBeenCalled()
+    })
+
+    it('releases a reservation without allowing a negative counter', async () => {
+      mockPrismaUsageUpdateMany.mockResolvedValue({ count: 1 })
+
+      await releaseUsage('user-123', 'pitchDecks')
+
+      expect(mockPrismaUsageUpdateMany).toHaveBeenCalledWith({
+        where: {
+          userId: 'user-123',
+          month: currentMonth,
+          pitchDecks: { gt: 0 },
+        },
+        data: { pitchDecks: { decrement: 1 } },
+      })
     })
   })
 })

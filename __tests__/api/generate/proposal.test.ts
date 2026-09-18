@@ -1,34 +1,43 @@
-// Mock functions need to be declared before the mock modules
-const mockAuth = jest.fn()
-const mockCanUserGenerate = jest.fn()
-const mockIncrementUsage = jest.fn()
-const mockPrismaDocumentCreate = jest.fn()
-const mockAIServiceGenerateProposal = jest.fn()
-
 // Mock dependencies
 jest.mock('@/auth', () => ({
-  auth: mockAuth,
+  auth: jest.fn(),
 }))
 
 jest.mock('@/lib/subscription', () => ({
-  canUserGenerate: mockCanUserGenerate,
-  incrementUsage: mockIncrementUsage,
+  canUserGenerate: jest.fn(),
+  incrementUsage: jest.fn(),
+  reserveUsage: jest.fn(),
+  releaseUsage: jest.fn(),
 }))
 
 jest.mock('@/lib/prisma', () => ({
-  document: {
-    create: mockPrismaDocumentCreate,
+  prisma: {
+    document: {
+      create: jest.fn(),
+    },
   },
 }))
 
 jest.mock('@/lib/ai-service', () => ({
   aiService: {
-    generateProposal: mockAIServiceGenerateProposal,
+    generateProposal: jest.fn(),
   },
 }))
 
 import { NextRequest } from 'next/server'
 import { POST } from '@/app/api/generate/proposal/route'
+import { auth } from '@/auth'
+import { canUserGenerate, incrementUsage, releaseUsage, reserveUsage } from '@/lib/subscription'
+import { prisma } from '@/lib/prisma'
+import { aiService } from '@/lib/ai-service'
+
+const mockAuth = auth as jest.MockedFunction<typeof auth>
+const mockCanUserGenerate = canUserGenerate as jest.MockedFunction<typeof canUserGenerate>
+const mockIncrementUsage = incrementUsage as jest.MockedFunction<typeof incrementUsage>
+const mockReserveUsage = reserveUsage as jest.MockedFunction<typeof reserveUsage>
+const mockReleaseUsage = releaseUsage as jest.MockedFunction<typeof releaseUsage>
+const mockPrismaDocumentCreate = prisma.document.create as jest.MockedFunction<typeof prisma.document.create>
+const mockAIServiceGenerateProposal = aiService.generateProposal as jest.MockedFunction<typeof aiService.generateProposal>
 
 describe('/api/generate/proposal', () => {
   beforeEach(() => {
@@ -73,7 +82,7 @@ describe('/api/generate/proposal', () => {
     mockCanUserGenerate.mockResolvedValue(true)
     mockAIServiceGenerateProposal.mockResolvedValue(mockAIResponse)
     mockPrismaDocumentCreate.mockResolvedValue({
-      id: 'prop_123_abc',
+      id: '507f1f77bcf86cd799439011',
       userId: validSession.user.id,
       type: 'proposal',
       content: mockAIResponse.content
@@ -91,13 +100,17 @@ describe('/api/generate/proposal', () => {
     const result = await response.json()
 
     expect(response.status).toBe(200)
+    expect(result.status).toBe('completed')
     expect(result.message).toBe('Proposal generated successfully')
-    expect(result.id).toMatch(/^prop_\d+_[a-z0-9]+$/)
+    expect(result.id).toMatch(/^[a-f0-9]{24}$/)
     expect(result.metadata).toEqual({
       field: 'technology',
       model: mockAIResponse.model,
       tokensUsed: mockAIResponse.tokensUsed,
-      generationTime: mockAIResponse.generationTime
+      generationTime: mockAIResponse.generationTime,
+      estimatedCost: 0,
+      outputFormat: 'legacy-text',
+      promptVersion: 'proposal-v1-legacy-fallback',
     })
 
     expect(mockAuth).toHaveBeenCalled()
@@ -120,6 +133,75 @@ describe('/api/generate/proposal', () => {
     })
     expect(mockPrismaDocumentCreate).toHaveBeenCalled()
     expect(mockIncrementUsage).toHaveBeenCalledWith(validSession.user.id, 'proposals')
+  })
+
+  it('atomically reserves shared usage in production MongoDB mode', async () => {
+    const originalNodeEnv = process.env.NODE_ENV
+    const originalRateLimitStore = process.env.RATE_LIMIT_STORE
+    process.env.NODE_ENV = 'production'
+    process.env.RATE_LIMIT_STORE = 'mongodb'
+
+    try {
+      mockAuth.mockResolvedValue(validSession)
+      mockReserveUsage.mockResolvedValue(true)
+      mockAIServiceGenerateProposal.mockResolvedValue(mockAIResponse)
+      mockPrismaDocumentCreate.mockResolvedValue({
+        id: '507f1f77bcf86cd799439011',
+        userId: validSession.user.id,
+        type: 'proposal',
+        content: mockAIResponse.content,
+      })
+
+      const response = await POST(new NextRequest('http://localhost:3000/api/generate/proposal', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(validRequestData),
+      }))
+
+      expect(response.status).toBe(200)
+      expect(mockReserveUsage).toHaveBeenCalledWith(validSession.user.id, 'proposals')
+      expect(mockCanUserGenerate).not.toHaveBeenCalled()
+      expect(mockIncrementUsage).not.toHaveBeenCalled()
+      expect(mockReleaseUsage).not.toHaveBeenCalled()
+    } finally {
+      if (originalNodeEnv === undefined) delete process.env.NODE_ENV
+      else process.env.NODE_ENV = originalNodeEnv
+      if (originalRateLimitStore === undefined) delete process.env.RATE_LIMIT_STORE
+      else process.env.RATE_LIMIT_STORE = originalRateLimitStore
+    }
+  })
+
+  it('normalizes structured JSON and records the output contract', async () => {
+    mockAuth.mockResolvedValue(validSession)
+    mockCanUserGenerate.mockResolvedValue(true)
+    mockAIServiceGenerateProposal.mockResolvedValue({
+      ...mockAIResponse,
+      repairAttempted: true,
+      content: JSON.stringify({
+        title: 'Structured proposal',
+        executiveSummary: 'A concise summary.',
+        sections: [{ heading: 'Scope', body: 'A clear scope.', bullets: ['One outcome'] }],
+      }),
+    })
+    mockPrismaDocumentCreate.mockResolvedValue({
+      id: '507f1f77bcf86cd799439011',
+      userId: validSession.user.id,
+      type: 'proposal',
+      content: '# Structured proposal',
+    })
+
+    const response = await POST(new NextRequest('http://localhost:3000/api/generate/proposal', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(validRequestData),
+    }))
+    const result = await response.json()
+
+    expect(response.status).toBe(200)
+    expect(result.metadata.outputFormat).toBe('structured-json')
+    expect(result.metadata.promptVersion).toBe('proposal-v2-structured-json')
+    expect(result.metadata.repairAttempted).toBe(true)
+    expect(mockPrismaDocumentCreate.mock.calls[0][0].data.content).toContain('# Structured proposal')
   })
 
   it('should return 401 if user is not authenticated', async () => {
@@ -158,6 +240,26 @@ describe('/api/generate/proposal', () => {
 
     expect(response.status).toBe(403)
     expect(result.error).toBe('Usage limit reached. Please upgrade your plan to generate more proposals.')
+    expect(mockAIServiceGenerateProposal).not.toHaveBeenCalled()
+  })
+
+  it('should reject an underspecified brief before reserving usage or calling the provider', async () => {
+    mockAuth.mockResolvedValue(validSession)
+
+    const response = await POST(new NextRequest('http://localhost:3000/api/generate/proposal', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        ...validRequestData,
+        projectDescription: '...',
+      }),
+    }))
+    const result = await response.json()
+
+    expect(response.status).toBe(400)
+    expect(result.fields).toContain('projectDescription must contain meaningful information')
+    expect(mockCanUserGenerate).not.toHaveBeenCalled()
+    expect(mockReserveUsage).not.toHaveBeenCalled()
     expect(mockAIServiceGenerateProposal).not.toHaveBeenCalled()
   })
 
@@ -205,7 +307,7 @@ describe('/api/generate/proposal', () => {
     mockCanUserGenerate.mockResolvedValue(true)
     mockAIServiceGenerateProposal.mockResolvedValue(mockAIResponse)
     mockPrismaDocumentCreate.mockResolvedValue({
-      id: 'prop_123_abc',
+      id: '507f1f77bcf86cd799439011',
       userId: validSession.user.id,
       type: 'proposal',
       content: mockAIResponse.content
@@ -244,7 +346,7 @@ describe('/api/generate/proposal', () => {
     mockCanUserGenerate.mockResolvedValue(true)
     mockAIServiceGenerateProposal.mockResolvedValue(mockAIResponse)
     mockPrismaDocumentCreate.mockResolvedValue({
-      id: 'prop_123_abc',
+      id: '507f1f77bcf86cd799439011',
       userId: validSession.user.id,
       type: 'proposal',
       content: mockAIResponse.content
@@ -279,7 +381,7 @@ describe('/api/generate/proposal', () => {
     mockCanUserGenerate.mockResolvedValue(true)
     mockAIServiceGenerateProposal.mockResolvedValue(mockAIResponse)
     mockPrismaDocumentCreate.mockResolvedValue({
-      id: 'prop_123_abc',
+      id: '507f1f77bcf86cd799439011',
       userId: validSession.user.id,
       type: 'proposal',
       content: mockAIResponse.content
@@ -352,7 +454,6 @@ describe('/api/generate/proposal', () => {
     expect(response.status).toBe(200)
     expect(mockPrismaDocumentCreate).toHaveBeenCalledWith({
       data: expect.objectContaining({
-        id: expect.stringMatching(/^prop_\d+_[a-z0-9]+$/),
         userId: validSession.user.id,
         type: 'proposal',
         clientName: 'John Doe',

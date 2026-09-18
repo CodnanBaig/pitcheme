@@ -2,9 +2,11 @@ import { NextRequest } from 'next/server'
 
 // Mock Prisma first before importing
 jest.mock('@/lib/prisma', () => ({
-  user: {
-    findUnique: jest.fn(),
-    create: jest.fn(),
+  prisma: {
+    user: {
+      findUnique: jest.fn(),
+      create: jest.fn(),
+    },
   },
 }))
 

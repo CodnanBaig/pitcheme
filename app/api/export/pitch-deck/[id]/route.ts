@@ -1,7 +1,12 @@
 import { auth } from "@/auth"
 import { type NextRequest, NextResponse } from "next/server"
-import puppeteer from "puppeteer"
+import { chromium } from "playwright-core"
 import { prisma } from "@/lib/prisma"
+import { safeFilename } from "@/lib/safe-filename"
+import { escapeHtml, sanitizeGeneratedHtml } from "@/lib/sanitize-html"
+import { enforceRateLimit } from "@/lib/rate-limit"
+import { isMongoObjectId } from "@/lib/mongo-id"
+import { getRequestId, jsonWithRequestId } from "@/lib/request-id"
 
 interface RouteParams {
   params: { id: string }
@@ -35,24 +40,48 @@ export async function GET(
   props: { params: Promise<{ id: string }> }
 ) {
   const params = await props.params;
+  const requestId = getRequestId(request)
+  const json = (body: unknown, init: ResponseInit = {}) =>
+    NextResponse.json(body, jsonWithRequestId(requestId, init))
+  let browser: Awaited<ReturnType<typeof chromium.launch>> | null = null
+
   try {
     const session = await auth()
 
     if (!session || !session.user || !session.user.id) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+      return json({ error: "Unauthorized", requestId }, { status: 401 })
+    }
+
+    if (!isMongoObjectId(params.id)) {
+      return json({ error: "Invalid pitch deck ID", requestId }, { status: 400 })
+    }
+
+    if (process.env.NODE_ENV !== "test") {
+      const rateLimit = await enforceRateLimit(`pitch-deck-export:${session.user.id}`, { limit: 20, windowMs: 60_000 })
+      if (!rateLimit.allowed) {
+        return json(
+          { error: "Too many export requests. Please try again shortly." },
+          { status: 429, headers: { "Retry-After": String(Math.ceil((rateLimit.resetAt - Date.now()) / 1000)) } },
+        )
+      }
     }
 
     const pitchDeck = await getPitchDeck(params.id, session.user.id)
 
     if (!pitchDeck) {
-      return NextResponse.json({ error: "Pitch deck not found" }, { status: 404 })
+      return json({ error: "Pitch deck not found", requestId }, { status: 404 })
     }
 
-    // Generate PDF using Puppeteer with slide-like formatting
-    const browser = await puppeteer.launch({
+    // Generate PDF with slide-like formatting using deployment Chromium.
+    const launchOptions: Parameters<typeof chromium.launch>[0] = {
       headless: true,
       args: ["--no-sandbox", "--disable-setuid-sandbox"],
-    })
+    }
+    const executablePath = process.env.CHROMIUM_EXECUTABLE_PATH?.trim() || process.env.PUPPETEER_EXECUTABLE_PATH?.trim()
+    if (executablePath) {
+      launchOptions.executablePath = executablePath
+    }
+    browser = await chromium.launch(launchOptions)
 
     const page = await browser.newPage()
 
@@ -62,14 +91,17 @@ export async function GET(
       <html>
       <head>
         <meta charset="utf-8">
-        <title>${pitchDeck.startupName} Pitch Deck</title>
-        <style>
+        <title>${escapeHtml(pitchDeck.startupName || "Pitch Deck")} Pitch Deck</title>
+          <style>
+          @page { size: A4 landscape; margin: 0; }
+          :root { color-scheme: light; }
           /* Global PDF-ready styles */
           body {
-            font-family: 'Segoe UI', Arial, sans-serif;
-            color: #1A1A1A;
+            font-family: Inter, 'Segoe UI', Arial, sans-serif;
+            color: #0D1B2A;
             margin: 0;
             padding: 0;
+            background: #ffffff;
           }
           .slide {
             width: 1000px;
@@ -78,23 +110,24 @@ export async function GET(
             box-sizing: border-box;
             position: relative;
             page-break-after: always;
+            background: #ffffff;
           }
           h1 {
             font-size: 36px;
             font-weight: 700;
-            color: #0B2B5B;
+            color: #0D1B2A;
             margin: 0 0 16px;
           }
           h2 {
             font-size: 28px;
             font-weight: 600;
-            color: #0B2B5B;
+            color: #0E7373;
             margin: 0 0 12px;
           }
           h3 {
             font-size: 22px;
             font-weight: 600;
-            color: #0B2B5B;
+            color: #1B263B;
             margin: 0 0 8px;
           }
           p, li {
@@ -103,7 +136,7 @@ export async function GET(
             margin: 0 0 6px;
           }
           .accent {
-            color: #0072FF;
+            color: #18A6A6;
           }
           .grid2 {
             display: grid;
@@ -122,10 +155,10 @@ export async function GET(
             max-width: 1000px;
             margin: 0 auto 20px;
             padding: 30px;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: #1B263B;
             color: white;
-            border-radius: 10px;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            border: 1px solid #33465d;
+            box-shadow: 0 5px 14px rgba(13, 27, 42, 0.12);
             page-break-after: always;
             position: relative;
           }
@@ -172,24 +205,25 @@ export async function GET(
           }
           
           .pitch-deck-slides .visual-elements {
-            background: rgba(255,255,255,0.1);
+            background: rgba(255,255,255,0.08);
             padding: 20px;
-            border-radius: 8px;
+            border-left: 3px solid #18A6A6;
             margin-top: 20px;
           }
           
           .pitch-deck-slides .speaker-notes {
-            background: rgba(255,255,255,0.1);
+            background: rgba(255,255,255,0.08);
             padding: 15px;
-            border-radius: 8px;
+            border-left: 3px solid #18A6A6;
             margin-top: 30px;
           }
           
           /* Title slide styling */
           .title-slide {
             text-align: center;
-            background: linear-gradient(135deg, #15803d 0%, #84cc16 100%);
+            background: #0D1B2A;
             color: white;
+            border-top: 10px solid #18A6A6;
           }
           .title-slide h1 {
             color: white;
@@ -206,7 +240,7 @@ export async function GET(
             bottom: 30px;
             right: 30px;
             font-size: 18px;
-            color: #84cc16;
+            color: #18A6A6;
             font-weight: bold;
           }
           
@@ -230,32 +264,47 @@ export async function GET(
       </html>
     `
 
-    await page.setContent(htmlContent, { waitUntil: "networkidle0" })
+    await page.setContent(htmlContent, { waitUntil: "load" })
 
     const pdf = await page.pdf({
       format: "A4",
       landscape: true,
       printBackground: true,
+      displayHeaderFooter: true,
+      headerTemplate: "<span></span>",
+      footerTemplate: `<div style="width:100%;padding:0 10mm;color:#9bb0c4;font:9px Arial,sans-serif;text-align:right;">${escapeHtml(pitchDeck.startupName || "Pitch Deck")} · <span class="pageNumber"></span> / <span class="totalPages"></span></div>`,
       margin: {
-        top: "10mm",
-        right: "10mm",
-        bottom: "10mm",
-        left: "10mm",
+        top: "0mm",
+        right: "0mm",
+        bottom: "0mm",
+        left: "0mm",
       },
-      preferCSSPageSize: true,
     })
-
-    await browser.close()
 
     return new NextResponse(new Uint8Array(pdf), {
       headers: {
         "Content-Type": "application/pdf",
-        "Content-Disposition": `attachment; filename="${(pitchDeck.startupName || "").replace(/[^a-z0-9]/gi, "_")}_pitch_deck.pdf"`,
+        "Content-Disposition": `attachment; filename="${safeFilename(pitchDeck.startupName, "pitch-deck")}_pitch_deck.pdf"`,
+        "X-Request-ID": requestId,
       },
     })
   } catch (error) {
-    console.error("Error exporting pitch deck:", error)
-    return NextResponse.json({ error: "Failed to export pitch deck" }, { status: 500 })
+    console.error("Error exporting pitch deck", {
+      requestId,
+      error: error instanceof Error ? error.name : "unknown",
+    })
+    return json({ error: "Failed to export pitch deck", requestId }, { status: 500 })
+  } finally {
+    if (browser) {
+      try {
+        await browser.close()
+      } catch (closeError) {
+        console.error("Error closing pitch deck export browser", {
+          requestId,
+          error: closeError instanceof Error ? closeError.name : "unknown",
+        })
+      }
+    }
   }
 }
 
@@ -265,12 +314,12 @@ function formatPitchDeckForPDF(content: string, startupName: string, tagline: st
     // Content is already formatted for PDF - just add title slide
     const titleSlide = `
       <div class="slide title-slide">
-        <h1>${startupName}</h1>
-        <div class="tagline">${tagline || ''}</div>
+        <h1>${escapeHtml(startupName)}</h1>
+        <div class="tagline">${escapeHtml(tagline || '')}</div>
         <div class="slide-number">1</div>
       </div>
     `
-    return titleSlide + content
+    return `<div class="pitch-deck-slides">${titleSlide}${sanitizeGeneratedHtml(content)}</div>`
   }
 
   // Fallback to original parsing for legacy content
@@ -290,8 +339,8 @@ function formatPitchDeckForPDF(content: string, startupName: string, tagline: st
       if (isFirstSlide) {
         currentSlide = `
           <div class="slide title-slide">
-            <h1>${startupName}</h1>
-            <div class="tagline">${tagline}</div>
+            <h1>${escapeHtml(startupName)}</h1>
+            <div class="tagline">${escapeHtml(tagline || '')}</div>
             <div class="slide-number">${slideNumber}</div>
           </div>
         `
@@ -300,12 +349,12 @@ function formatPitchDeckForPDF(content: string, startupName: string, tagline: st
         currentSlide = `<div class="slide"><div class="slide-number">${slideNumber}</div>`
       }
     } else if (line.startsWith("**") && line.endsWith("**")) {
-      currentSlide += `<h2>${line.replace(/\*\*/g, "")}</h2>`
+      currentSlide += `<h2>${escapeHtml(line.slice(2, -2))}</h2>`
     } else if (line.startsWith("• ")) {
       if (!currentSlide.includes("<ul>")) {
         currentSlide += "<ul>"
       }
-      currentSlide += `<li>${line.replace("• ", "")}</li>`
+      currentSlide += `<li>${escapeHtml(line.slice(2))}</li>`
     } else if (line.trim() === "" && currentSlide.includes("<ul>")) {
       currentSlide += "</ul>"
     }
@@ -319,5 +368,5 @@ function formatPitchDeckForPDF(content: string, startupName: string, tagline: st
     slides.push(currentSlide)
   }
 
-  return slides.join("")
+  return `<div class="pitch-deck-slides">${slides.join("")}</div>`
 }

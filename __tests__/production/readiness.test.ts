@@ -1,162 +1,103 @@
-describe('Production Readiness Validation', () => {
-  describe('Environment Configuration', () => {
-    it('should have all required environment variables', () => {
-      const requiredEnvVars = [
-        'DATABASE_URL',
-        'NEXTAUTH_SECRET',
-        'NEXTAUTH_URL',
-        'STRIPE_SECRET_KEY',
-        'STRIPE_WEBHOOK_SECRET'
-      ]
-      
-      requiredEnvVars.forEach(envVar => {
-        expect(process.env[envVar]).toBeDefined()
-      })
-    })
+import fs from "node:fs"
+import path from "node:path"
+import nextConfig from "@/next.config"
+import { getRuntimeEnvironmentStatus } from "@/lib/env"
+import { isMongoObjectId } from "@/lib/mongo-id"
 
-    it('should use secure configurations in production', () => {
-      // Test production security settings
-      expect(process.env.NODE_ENV).toBeDefined()
-      expect(true).toBe(true)
-    })
+describe("production readiness contracts", () => {
+  it("uses MongoDB and declares the generation audit model", () => {
+    const schema = fs.readFileSync(path.join(process.cwd(), "prisma/schema.prisma"), "utf8")
 
-    it('should have proper CORS configuration', () => {
-      // Test CORS settings
-      expect(true).toBe(true)
+    expect(schema).toContain('provider = "mongodb"')
+    expect(schema).toContain("model Generation")
+    expect(schema).toContain("@@index([requestId, createdAt])")
+  })
+
+  it("exposes the expected quality scripts", () => {
+    const packageJson = JSON.parse(fs.readFileSync(path.join(process.cwd(), "package.json"), "utf8")) as {
+      scripts: Record<string, string>
+    }
+
+    expect(packageJson.scripts).toMatchObject({
+      lint: expect.any(String),
+      typecheck: expect.any(String),
+      test: expect.any(String),
+      "test:ci": expect.any(String),
+      "test:e2e": expect.any(String),
+      "eval:ai": expect.any(String),
+      build: expect.any(String),
     })
   })
 
-  describe('Database Configuration', () => {
-    it('should use cloud-compatible database URL', () => {
-      // Test that DATABASE_URL is not SQLite for production
-      const dbUrl = process.env.DATABASE_URL || ''
-      if (process.env.NODE_ENV === 'production') {
-        expect(dbUrl).not.toContain('file:')
-        expect(dbUrl).toMatch(/postgres:\/\/|mysql:\/\//)
-      }
-      expect(true).toBe(true)
-    })
+  it("rejects insecure production configuration", () => {
+    const original = {
+      nodeEnv: process.env.NODE_ENV,
+      databaseUrl: process.env.DATABASE_URL,
+      nextAuthUrl: process.env.NEXTAUTH_URL,
+      nextAuthSecret: process.env.NEXTAUTH_SECRET,
+      openRouterKey: process.env.OPENROUTER_API_KEY,
+    }
 
-    it('should have connection pooling configured', () => {
-      // Test database connection configuration
-      expect(true).toBe(true)
-    })
+    try {
+      process.env.NODE_ENV = "production"
+      process.env.DATABASE_URL = "postgresql://localhost/app"
+      process.env.NEXTAUTH_URL = "http://localhost:3000"
+      process.env.NEXTAUTH_SECRET = "short"
+      delete process.env.OPENROUTER_API_KEY
+
+      const status = getRuntimeEnvironmentStatus()
+
+      expect(status.ok).toBe(false)
+      expect(status.errors.length).toBeGreaterThanOrEqual(4)
+    } finally {
+      process.env.NODE_ENV = original.nodeEnv
+      process.env.DATABASE_URL = original.databaseUrl
+      process.env.NEXTAUTH_URL = original.nextAuthUrl
+      process.env.NEXTAUTH_SECRET = original.nextAuthSecret
+      process.env.OPENROUTER_API_KEY = original.openRouterKey
+    }
   })
 
-  describe('Security Validation', () => {
-    it('should enforce HTTPS in production', () => {
-      // Test HTTPS enforcement
-      if (process.env.NODE_ENV === 'production') {
-        expect(process.env.NEXTAUTH_URL).toContain('https://')
-      }
-      expect(true).toBe(true)
-    })
+  it("accepts a secure production configuration", () => {
+    const originalNodeEnv = process.env.NODE_ENV
+    const originalUrl = process.env.NEXTAUTH_URL
+    const originalSecret = process.env.NEXTAUTH_SECRET
+    const originalKey = process.env.OPENROUTER_API_KEY
 
-    it('should have secure session configuration', () => {
-      // Test session security
-      expect(process.env.NEXTAUTH_SECRET).toBeDefined()
-      expect(process.env.NEXTAUTH_SECRET?.length).toBeGreaterThan(32)
-    })
+    try {
+      process.env.NODE_ENV = "production"
+      process.env.NEXTAUTH_URL = "https://pitchgenie.example.com"
+      process.env.NEXTAUTH_SECRET = "secure-production-secret-that-is-at-least-32-characters"
+      process.env.OPENROUTER_API_KEY = "configured-provider-key"
 
-    it('should implement rate limiting', () => {
-      // Test rate limiting configuration
-      expect(true).toBe(true)
-    })
+      expect(getRuntimeEnvironmentStatus()).toMatchObject({ ok: true, missing: [], errors: [] })
+    } finally {
+      process.env.NODE_ENV = originalNodeEnv
+      process.env.NEXTAUTH_URL = originalUrl
+      process.env.NEXTAUTH_SECRET = originalSecret
+      process.env.OPENROUTER_API_KEY = originalKey
+    }
   })
 
-  describe('Performance Requirements', () => {
-    it('should meet response time SLAs', () => {
-      // Test that response times are within acceptable limits
-      const slaRequirements = {
-        authentication: 1000, // 1 second
-        generation: 5000,     // 5 seconds
-        export: 3000,         // 3 seconds
-        health: 100           // 100ms
-      }
-      
-      Object.values(slaRequirements).forEach(sla => {
-        expect(sla).toBeGreaterThan(0)
-      })
-    })
+  it("keeps the production security headers configured", async () => {
+    const originalNodeEnv = process.env.NODE_ENV
+    try {
+      process.env.NODE_ENV = "production"
+      const headerGroups = await nextConfig.headers?.()
+      const headers = Object.fromEntries((headerGroups?.[0]?.headers ?? []).map((header) => [header.key, header.value]))
 
-    it('should handle concurrent load', () => {
-      // Test concurrent request handling
-      expect(true).toBe(true)
-    })
+      expect(headers["X-Frame-Options"]).toBe("DENY")
+      expect(headers["X-Content-Type-Options"]).toBe("nosniff")
+      expect(headers["Referrer-Policy"]).toBe("strict-origin-when-cross-origin")
+      expect(headers["Content-Security-Policy"]).toContain("default-src 'self'")
+      expect(headers["Strict-Transport-Security"]).toContain("max-age=31536000")
+    } finally {
+      process.env.NODE_ENV = originalNodeEnv
+    }
   })
 
-  describe('Monitoring and Observability', () => {
-    it('should have health check endpoint', () => {
-      // Test health check availability
-      expect(true).toBe(true)
-    })
-
-    it('should implement error tracking', () => {
-      // Test error monitoring
-      expect(true).toBe(true)
-    })
-
-    it('should track performance metrics', () => {
-      // Test performance monitoring
-      expect(true).toBe(true)
-    })
-  })
-
-  describe('Business Logic Validation', () => {
-    it('should validate all critical user journeys', () => {
-      // Test end-to-end workflows
-      const criticalJourneys = [
-        'user registration',
-        'document generation',
-        'file export',
-        'subscription management'
-      ]
-      
-      expect(criticalJourneys).toHaveLength(4)
-    })
-
-    it('should enforce subscription limits correctly', () => {
-      // Test subscription enforcement
-      expect(true).toBe(true)
-    })
-
-    it('should handle payment processing securely', () => {
-      // Test Stripe integration
-      expect(true).toBe(true)
-    })
-  })
-
-  describe('Deployment Readiness', () => {
-    it('should have optimized build configuration', () => {
-      // Test build optimization
-      expect(true).toBe(true)
-    })
-
-    it('should have backup and recovery procedures', () => {
-      // Test backup strategy
-      expect(true).toBe(true)
-    })
-
-    it('should have rollback capabilities', () => {
-      // Test deployment rollback
-      expect(true).toBe(true)
-    })
-  })
-
-  describe('Documentation Completeness', () => {
-    it('should have comprehensive API documentation', () => {
-      // Test documentation availability
-      expect(true).toBe(true)
-    })
-
-    it('should have deployment guides', () => {
-      // Test deployment documentation
-      expect(true).toBe(true)
-    })
-
-    it('should have troubleshooting guides', () => {
-      // Test operational documentation
-      expect(true).toBe(true)
-    })
+  it("uses bounded Mongo ObjectIds for persisted resources", () => {
+    expect(isMongoObjectId("507f1f77bcf86cd799439011")).toBe(true)
+    expect(isMongoObjectId("prop_123_abc")).toBe(false)
   })
 })

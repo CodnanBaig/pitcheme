@@ -1,34 +1,39 @@
-// Mock functions need to be declared before the mock modules
-const mockAuth = jest.fn()
-const mockCanUserGenerate = jest.fn()
-const mockIncrementUsage = jest.fn()
-const mockPrismaDocumentCreate = jest.fn()
-const mockAIServiceGeneratePitchDeck = jest.fn()
-
 // Mock dependencies
 jest.mock('@/auth', () => ({
-  auth: mockAuth,
+  auth: jest.fn(),
 }))
 
 jest.mock('@/lib/subscription', () => ({
-  canUserGenerate: mockCanUserGenerate,
-  incrementUsage: mockIncrementUsage,
+  canUserGenerate: jest.fn(),
+  incrementUsage: jest.fn(),
 }))
 
 jest.mock('@/lib/prisma', () => ({
-  document: {
-    create: mockPrismaDocumentCreate,
+  prisma: {
+    document: {
+      create: jest.fn(),
+    },
   },
 }))
 
 jest.mock('@/lib/ai-service', () => ({
   aiService: {
-    generatePitchDeck: mockAIServiceGeneratePitchDeck,
+    generatePitchDeck: jest.fn(),
   },
 }))
 
 import { NextRequest } from 'next/server'
 import { POST } from '@/app/api/generate/pitch-deck/route'
+import { auth } from '@/auth'
+import { canUserGenerate, incrementUsage } from '@/lib/subscription'
+import { prisma } from '@/lib/prisma'
+import { aiService } from '@/lib/ai-service'
+
+const mockAuth = auth as jest.MockedFunction<typeof auth>
+const mockCanUserGenerate = canUserGenerate as jest.MockedFunction<typeof canUserGenerate>
+const mockIncrementUsage = incrementUsage as jest.MockedFunction<typeof incrementUsage>
+const mockPrismaDocumentCreate = prisma.document.create as jest.MockedFunction<typeof prisma.document.create>
+const mockAIServiceGeneratePitchDeck = aiService.generatePitchDeck as jest.MockedFunction<typeof aiService.generatePitchDeck>
 
 describe('/api/generate/pitch-deck', () => {
   beforeEach(() => {
@@ -78,7 +83,7 @@ describe('/api/generate/pitch-deck', () => {
     mockCanUserGenerate.mockResolvedValue(true)
     mockAIServiceGeneratePitchDeck.mockResolvedValue(mockAIResponse)
     mockPrismaDocumentCreate.mockResolvedValue({
-      id: 'deck_123_abc',
+      id: '507f1f77bcf86cd799439012',
       userId: validSession.user.id,
       type: 'pitch-deck',
       content: mockAIResponse.content
@@ -96,13 +101,17 @@ describe('/api/generate/pitch-deck', () => {
     const result = await response.json()
 
     expect(response.status).toBe(200)
+    expect(result.status).toBe('completed')
     expect(result.message).toBe('Pitch deck generated successfully')
-    expect(result.id).toMatch(/^deck_\d+_[a-z0-9]+$/)
+    expect(result.id).toMatch(/^[a-f0-9]{24}$/)
     expect(result.metadata).toEqual({
       field: 'technology',
       model: mockAIResponse.model,
       tokensUsed: mockAIResponse.tokensUsed,
-      generationTime: mockAIResponse.generationTime
+      generationTime: mockAIResponse.generationTime,
+      estimatedCost: 0,
+      outputFormat: 'legacy-text',
+      promptVersion: 'pitch-deck-v1-legacy-fallback',
     })
 
     expect(mockAuth).toHaveBeenCalled()
@@ -130,6 +139,37 @@ describe('/api/generate/pitch-deck', () => {
     })
     expect(mockPrismaDocumentCreate).toHaveBeenCalled()
     expect(mockIncrementUsage).toHaveBeenCalledWith(validSession.user.id, 'pitchDecks')
+  })
+
+  it('normalizes structured JSON and records the output contract', async () => {
+    mockAuth.mockResolvedValue(validSession)
+    mockCanUserGenerate.mockResolvedValue(true)
+    mockAIServiceGeneratePitchDeck.mockResolvedValue({
+      ...mockAIResponse,
+      content: JSON.stringify({
+        company: 'TechCorp',
+        tagline: 'A clearer future',
+        slides: [{ title: 'Problem', bullets: ['A costly gap'], visualSuggestion: 'A simple chart', speakerNotes: 'Explain the gap.' }],
+      }),
+    })
+    mockPrismaDocumentCreate.mockResolvedValue({
+      id: '507f1f77bcf86cd799439012',
+      userId: validSession.user.id,
+      type: 'pitch-deck',
+      content: '<div class="slide">',
+    })
+
+    const response = await POST(new NextRequest('http://localhost:3000/api/generate/pitch-deck', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(validRequestData),
+    }))
+    const result = await response.json()
+
+    expect(response.status).toBe(200)
+    expect(result.metadata.outputFormat).toBe('structured-json')
+    expect(result.metadata.promptVersion).toBe('pitch-deck-v2-structured-json')
+    expect(mockPrismaDocumentCreate.mock.calls[0][0].data.content).toContain('<div class="slide">')
   })
 
   it('should return 401 if user is not authenticated', async () => {
@@ -168,6 +208,25 @@ describe('/api/generate/pitch-deck', () => {
 
     expect(response.status).toBe(403)
     expect(result.error).toBe('Usage limit reached. Please upgrade your plan to generate more pitch decks.')
+    expect(mockAIServiceGeneratePitchDeck).not.toHaveBeenCalled()
+  })
+
+  it('should reject an underspecified brief before reserving usage or calling the provider', async () => {
+    mockAuth.mockResolvedValue(validSession)
+
+    const response = await POST(new NextRequest('http://localhost:3000/api/generate/pitch-deck', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        ...validRequestData,
+        problem: 'N/A',
+      }),
+    }))
+    const result = await response.json()
+
+    expect(response.status).toBe(400)
+    expect(result.fields).toContain('problem must contain meaningful information')
+    expect(mockCanUserGenerate).not.toHaveBeenCalled()
     expect(mockAIServiceGeneratePitchDeck).not.toHaveBeenCalled()
   })
 
@@ -213,7 +272,7 @@ describe('/api/generate/pitch-deck', () => {
       model: 'google/gemini-2.5-flash-image-preview:free'
     })
     mockPrismaDocumentCreate.mockResolvedValue({
-      id: 'deck_123_abc',
+      id: '507f1f77bcf86cd799439012',
       userId: validSession.user.id,
       type: 'pitch-deck',
       content: mockAIResponse.content
@@ -254,7 +313,7 @@ describe('/api/generate/pitch-deck', () => {
     mockCanUserGenerate.mockResolvedValue(true)
     mockAIServiceGeneratePitchDeck.mockResolvedValue(mockAIResponse)
     mockPrismaDocumentCreate.mockResolvedValue({
-      id: 'deck_123_abc',
+      id: '507f1f77bcf86cd799439012',
       userId: validSession.user.id,
       type: 'pitch-deck',
       content: mockAIResponse.content
@@ -316,7 +375,7 @@ describe('/api/generate/pitch-deck', () => {
     mockCanUserGenerate.mockResolvedValue(true)
     mockAIServiceGeneratePitchDeck.mockResolvedValue(mockAIResponse)
     mockPrismaDocumentCreate.mockResolvedValue({
-      id: 'deck_123_abc',
+      id: '507f1f77bcf86cd799439012',
       userId: validSession.user.id,
       type: 'pitch-deck',
       content: mockAIResponse.content

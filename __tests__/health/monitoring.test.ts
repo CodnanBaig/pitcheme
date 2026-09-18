@@ -1,154 +1,137 @@
-describe('Health Checks and Monitoring', () => {
-  describe('Health Check Endpoint', () => {
-    it('should return healthy status when all services are operational', async () => {
-      // Test overall health check
-      const mockHealthResponse = {
-        status: 'healthy',
-        timestamp: expect.any(String),
-        checks: {
-          database: { status: 'healthy', responseTime: expect.any(Number) },
-          ai_service: { status: 'healthy', responseTime: expect.any(Number) },
-          stripe: { status: 'healthy', responseTime: expect.any(Number) },
-          storage: { status: 'healthy', responseTime: expect.any(Number) }
-        }
+jest.mock("@/lib/prisma", () => ({
+  prisma: {
+    $runCommandRaw: jest.fn(),
+  },
+}))
+
+import { NextRequest } from "next/server"
+import { GET } from "@/app/api/health/route"
+import { prisma } from "@/lib/prisma"
+
+const mockPing = prisma.$runCommandRaw as jest.MockedFunction<typeof prisma.$runCommandRaw>
+
+describe("health and monitoring contract", () => {
+  const originalFetch = global.fetch
+
+  beforeEach(() => {
+    jest.clearAllMocks()
+    mockPing.mockResolvedValue({ ok: 1 })
+    process.env.OPENROUTER_API_KEY = "monitoring-test-key"
+    process.env.STRIPE_BILLING_ENABLED = "true"
+    process.env.STRIPE_SECRET_KEY = "sk_test_monitoring"
+    process.env.STRIPE_WEBHOOK_SECRET = "whsec_monitoring"
+    delete process.env.HEALTHCHECK_EXTERNAL_SERVICES
+    global.fetch = jest.fn()
+  })
+
+  afterEach(() => {
+    global.fetch = originalFetch
+    delete process.env.HEALTHCHECK_EXTERNAL_SERVICES
+    delete process.env.HEALTHCHECK_DATABASE_INDEXES
+    delete process.env.STRIPE_BILLING_ENABLED
+  })
+
+  it("reports database, provider, storage, build, and request status", async () => {
+    const response = await GET(new NextRequest("http://localhost:3000/api/health", {
+      headers: { "x-request-id": "monitoring-healthy" },
+    }))
+    const body = await response.json()
+
+    expect(response.status).toBe(200)
+    expect(body).toMatchObject({
+      status: "healthy",
+      requestId: "monitoring-healthy",
+      checks: {
+        database: { status: "healthy" },
+        ai_service: { status: "healthy" },
+        stripe: { status: "healthy" },
+        storage: { status: "healthy" },
+      },
+      build: { version: expect.any(String), commit: expect.any(String) },
+    })
+    expect(response.headers.get("X-Request-ID")).toBe("monitoring-healthy")
+    expect(mockPing).toHaveBeenCalledWith({ ping: 1 })
+    expect(global.fetch).not.toHaveBeenCalled()
+  })
+
+  it("returns a failing readiness status when MongoDB is unavailable", async () => {
+    mockPing.mockRejectedValue(new Error("database unavailable"))
+
+    const response = await GET(new NextRequest("http://localhost:3000/api/health"))
+    const body = await response.json()
+
+    expect(response.status).toBe(503)
+    expect(body.status).toBe("unhealthy")
+    expect(body.checks.database).toMatchObject({
+      status: "unhealthy",
+      message: "Database connection failed",
+    })
+  })
+
+  it("reports healthy when the required MongoDB indexes are present", async () => {
+    process.env.HEALTHCHECK_DATABASE_INDEXES = "true"
+    const indexesByCollection: Record<string, string[]> = {
+      Account: ["Account_provider_providerAccountId_key"],
+      Session: ["Session_sessionToken_key"],
+      User: ["User_email_key"],
+      VerificationToken: ["VerificationToken_token_key", "VerificationToken_identifier_token_key"],
+      UserSubscription: ["UserSubscription_userId_key"],
+      Usage: ["Usage_userId_month_key"],
+      DocumentVersion: ["DocumentVersion_userId_createdAt_idx", "DocumentVersion_documentId_version_key"],
+      Generation: ["Generation_userId_createdAt_idx", "Generation_requestId_createdAt_idx", "Generation_documentId_createdAt_idx"],
+      RateLimitBucket: ["RateLimitBucket_key_key", "RateLimitBucket_resetAt_idx"],
+    }
+    mockPing.mockImplementation(async (command) => {
+      const listIndexes = (command as { listIndexes?: string }).listIndexes
+      if (listIndexes) {
+        return { cursor: { firstBatch: (indexesByCollection[listIndexes] || []).map((name) => ({ name })) } }
       }
-      
-      expect(mockHealthResponse.status).toBe('healthy')
-      expect(mockHealthResponse.checks.database.status).toBe('healthy')
+      return { ok: 1 }
     })
 
-    it('should return unhealthy status when any service fails', () => {
-      const mockUnhealthyResponse = {
-        status: 'unhealthy',
-        timestamp: expect.any(String),
-        checks: {
-          database: { status: 'unhealthy', responseTime: expect.any(Number) }
-        }
-      }
-      
-      expect(mockUnhealthyResponse.status).toBe('unhealthy')
-    })
+    const response = await GET(new NextRequest("http://localhost:3000/api/health"))
+    const body = await response.json()
 
-    it('should include response times for performance monitoring', () => {
-      const mockResponse = {
-        checks: {
-          database: { responseTime: 50 },
-          ai_service: { responseTime: 2000 },
-          stripe: { responseTime: 300 }
-        }
-      }
-      
-      expect(mockResponse.checks.database.responseTime).toBeLessThan(100)
-      expect(mockResponse.checks.ai_service.responseTime).toBeLessThan(5000)
+    expect(response.status).toBe(200)
+    expect(body.checks.database).toMatchObject({
+      status: "healthy",
+      message: "Database connection and required indexes successful",
     })
   })
 
-  describe('Database Health', () => {
-    it('should validate database connectivity', () => {
-      // Test database connection
-      expect(true).toBe(true)
+  it("fails readiness when a required MongoDB index is missing", async () => {
+    process.env.HEALTHCHECK_DATABASE_INDEXES = "true"
+    mockPing.mockImplementation(async (command) => {
+      const listIndexes = (command as { listIndexes?: string }).listIndexes
+      if (listIndexes) return { cursor: { firstBatch: [] } }
+      return { ok: 1 }
     })
 
-    it('should check database response time', () => {
-      // Test database performance
-      expect(true).toBe(true)
-    })
+    const response = await GET(new NextRequest("http://localhost:3000/api/health"))
+    const body = await response.json()
 
-    it('should monitor connection pool status', () => {
-      // Test connection pool health
-      expect(true).toBe(true)
+    expect(response.status).toBe(503)
+    expect(body.status).toBe("unhealthy")
+    expect(body.checks.database).toMatchObject({
+      status: "unhealthy",
+      message: expect.stringContaining("Required MongoDB indexes are missing"),
     })
   })
 
-  describe('AI Service Health', () => {
-    it('should validate AI service availability', () => {
-      // Test AI service connectivity
-      expect(true).toBe(true)
-    })
+  it("runs and caches explicit external probes without exposing response bodies", async () => {
+    process.env.HEALTHCHECK_EXTERNAL_SERVICES = "true"
+    global.fetch = jest.fn().mockResolvedValue({ ok: true })
 
-    it('should check AI service response time', () => {
-      // Test AI service performance
-      expect(true).toBe(true)
-    })
+    const first = await GET(new NextRequest("http://localhost:3000/api/health"))
+    const second = await GET(new NextRequest("http://localhost:3000/api/health"))
+    const firstBody = await first.json()
+    const secondBody = await second.json()
 
-    it('should validate model availability', () => {
-      // Test that required models are accessible
-      expect(true).toBe(true)
-    })
-  })
-
-  describe('Stripe Service Health', () => {
-    it('should validate Stripe API connectivity', () => {
-      // Test Stripe service
-      expect(true).toBe(true)
-    })
-
-    it('should check webhook endpoint accessibility', () => {
-      // Test webhook configuration
-      expect(true).toBe(true)
-    })
-  })
-
-  describe('Storage Health', () => {
-    it('should monitor disk space usage', () => {
-      // Test storage capacity
-      expect(true).toBe(true)
-    })
-
-    it('should validate file system accessibility', () => {
-      // Test file operations
-      expect(true).toBe(true)
-    })
-  })
-
-  describe('Error Tracking', () => {
-    it('should log and track application errors', () => {
-      // Test error logging
-      expect(true).toBe(true)
-    })
-
-    it('should implement error rate monitoring', () => {
-      // Test error rate tracking
-      expect(true).toBe(true)
-    })
-
-    it('should alert on critical errors', () => {
-      // Test alerting system
-      expect(true).toBe(true)
-    })
-  })
-
-  describe('Performance Metrics', () => {
-    it('should track API response times', () => {
-      // Test performance monitoring
-      expect(true).toBe(true)
-    })
-
-    it('should monitor memory usage', () => {
-      // Test memory monitoring
-      expect(true).toBe(true)
-    })
-
-    it('should track user activity metrics', () => {
-      // Test usage analytics
-      expect(true).toBe(true)
-    })
-  })
-
-  describe('Alerting System', () => {
-    it('should trigger alerts for service failures', () => {
-      // Test alert triggers
-      expect(true).toBe(true)
-    })
-
-    it('should escalate critical issues', () => {
-      // Test alert escalation
-      expect(true).toBe(true)
-    })
-
-    it('should provide detailed error context', () => {
-      // Test alert content
-      expect(true).toBe(true)
-    })
+    expect(first.status).toBe(200)
+    expect(second.status).toBe(200)
+    expect(firstBody.checks.ai_service.message).toContain("external probe successful")
+    expect(secondBody.checks.stripe.message).toContain("external probe successful")
+    expect(firstBody).not.toHaveProperty("body")
+    expect(global.fetch).toHaveBeenCalledTimes(2)
   })
 })

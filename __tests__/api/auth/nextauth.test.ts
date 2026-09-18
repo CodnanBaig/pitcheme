@@ -4,8 +4,10 @@ import { prisma } from '@/lib/prisma'
 
 // Mock dependencies
 jest.mock('@/lib/prisma', () => ({
-  user: {
-    findUnique: jest.fn(),
+  prisma: {
+    user: {
+      findUnique: jest.fn(),
+    },
   },
 }))
 
@@ -175,7 +177,7 @@ describe('NextAuth Configuration', () => {
         name: 'Test User',
       }
 
-      const result = await authOptions.callbacks.session({ session, token })
+      const result = await authOptions.callbacks!.session!({ session, token } as any)
 
       expect(result.user.id).toBe('token-user-id')
     })
@@ -189,7 +191,7 @@ describe('NextAuth Configuration', () => {
         },
       }
 
-      const result = await authOptions.callbacks.session({ session, token: null })
+      const result = await authOptions.callbacks!.session!({ session, token: null } as any)
 
       expect(result.user.id).toBe('original-id')
     })
@@ -206,7 +208,7 @@ describe('NextAuth Configuration', () => {
         name: 'Test User',
       }
 
-      const result = await authOptions.callbacks.jwt({ token, user })
+      const result = await authOptions.callbacks!.jwt!({ token, user, account: null } as any)
 
       expect(result.id).toBe('user-123')
     })
@@ -218,7 +220,7 @@ describe('NextAuth Configuration', () => {
         name: 'Test User',
       }
 
-      const result = await authOptions.callbacks.jwt({ token, user: null })
+      const result = await authOptions.callbacks!.jwt!({ token, user: null, account: null } as any)
 
       expect(result).toEqual(token)
     })
@@ -226,11 +228,11 @@ describe('NextAuth Configuration', () => {
 
   describe('Configuration Validation', () => {
     it('should have proper configuration structure', () => {
-      expect(authOptions.session.strategy).toBe('jwt')
-      expect(authOptions.pages.signIn).toBe('/auth/signin')
-      expect(authOptions.pages.signOut).toBe('/auth/signout')
-      expect(authOptions.pages.error).toBe('/auth/error')
-      expect(authOptions.pages.verifyRequest).toBe('/auth/verify-request')
+      expect(authOptions.session!.strategy).toBe('jwt')
+      expect(authOptions.pages!.signIn).toBe('/auth/signin')
+      expect(authOptions.pages!.signOut).toBe('/auth/signout')
+      expect(authOptions.pages!.error).toBe('/auth/error')
+      expect(authOptions.pages!.verifyRequest).toBe('/auth/verify-request')
       expect(authOptions.providers).toHaveLength(1)
       expect(authOptions.providers[0].name).toBe('credentials')
     })

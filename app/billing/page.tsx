@@ -2,7 +2,7 @@ import { redirect } from "next/navigation"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/auth"
 import { getUserSubscription, getUserUsage } from "@/lib/subscription"
-import { STRIPE_PLANS } from "@/lib/stripe"
+import { isStripeBillingEnabled, STRIPE_PLANS } from "@/lib/stripe"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -19,6 +19,7 @@ export default async function BillingPage() {
   const usage = await getUserUsage(session.user.id)
   const planKey = (subscription?.plan) || "FREE"
   const plan = STRIPE_PLANS[planKey]
+  const billingEnabled = isStripeBillingEnabled()
 
   return (
     <div className="container mx-auto px-4 py-8 max-w-4xl">
@@ -64,7 +65,7 @@ export default async function BillingPage() {
             )}
 
             <div className="mt-6">
-              <ManageSubscriptionButton />
+              <ManageSubscriptionButton billingEnabled={billingEnabled} />
             </div>
           </CardContent>
         </Card>

@@ -1,8 +1,8 @@
-// Simple mock approach to avoid hoisting issues
-jest.mock('@/auth')
-jest.mock('@/lib/subscription')
-jest.mock('@/lib/prisma')
-jest.mock('@/lib/ai-service')
+// Keep API tests independent from the real database and model providers.
+jest.mock('@/auth', () => ({ auth: jest.fn() }))
+jest.mock('@/lib/subscription', () => ({ canUserGenerate: jest.fn(), incrementUsage: jest.fn() }))
+jest.mock('@/lib/prisma', () => ({ prisma: { document: { create: jest.fn() } } }))
+jest.mock('@/lib/ai-service', () => ({ aiService: { generatePitchDeck: jest.fn() } }))
 
 import { NextRequest } from 'next/server'
 import { POST } from '@/app/api/generate/pitch-deck/route'
@@ -66,7 +66,7 @@ describe('/api/generate/pitch-deck - Simple Tests', () => {
     mockCanUserGenerate.mockResolvedValue(true)
     mockAIServiceGeneratePitchDeck.mockResolvedValue(mockAIResponse as any)
     mockPrismaDocumentCreate.mockResolvedValue({
-      id: 'deck_123_abc',
+      id: '507f1f77bcf86cd799439012',
       userId: validSession.user.id,
       type: 'pitch-deck',
       content: mockAIResponse.content
@@ -85,7 +85,7 @@ describe('/api/generate/pitch-deck - Simple Tests', () => {
 
     expect(response.status).toBe(200)
     expect(result.message).toBe('Pitch deck generated successfully')
-    expect(result.id).toMatch(/^deck_\d+_[a-z0-9]+$/)
+    expect(result.id).toBe('507f1f77bcf86cd799439012')
     expect(result.metadata.field).toBe('technology')
     expect(result.metadata.model).toBe(mockAIResponse.model)
 
@@ -177,7 +177,7 @@ describe('/api/generate/pitch-deck - Simple Tests', () => {
       model: 'google/gemini-2.5-flash-image-preview:free'
     } as any)
     mockPrismaDocumentCreate.mockResolvedValue({
-      id: 'deck_123_abc',
+      id: '507f1f77bcf86cd799439012',
       userId: validSession.user.id,
       type: 'pitch-deck',
       content: mockAIResponse.content

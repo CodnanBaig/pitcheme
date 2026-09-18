@@ -6,6 +6,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge"
 import { ArrowLeft, PresentationIcon as PresentationChart, Zap, CheckCircle } from "lucide-react"
 import Link from "next/link"
+import { getUserSubscription } from "@/lib/subscription"
+import { STRIPE_PLANS } from "@/lib/stripe"
 
 export default async function GeneratePitchDeckPage() {
   const session = await auth()
@@ -13,6 +15,9 @@ export default async function GeneratePitchDeckPage() {
   if (!session) {
     redirect("/auth/signin")
   }
+
+  const subscription = await getUserSubscription(session.user.id)
+  const plan = STRIPE_PLANS[subscription?.plan || "FREE"] || STRIPE_PLANS.FREE
 
   return (
     <div className="min-h-screen bg-background">
@@ -35,7 +40,7 @@ export default async function GeneratePitchDeckPage() {
               </div>
             </div>
             <Badge variant="secondary" className="hidden sm:flex">
-              Free Plan
+              {plan.name} Plan
             </Badge>
           </div>
         </div>
@@ -126,8 +131,7 @@ export default async function GeneratePitchDeckPage() {
                 </CardHeader>
                 <CardContent>
                   <p className="text-sm text-muted-foreground">
-                    Our AI creates pitch decks following proven frameworks that have helped startups raise millions in
-                    funding from top investors.
+                    Our AI organizes your inputs into a clear investor narrative that you can review, edit, and export.
                   </p>
                 </CardContent>
               </Card>

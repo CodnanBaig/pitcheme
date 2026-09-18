@@ -12,6 +12,7 @@ import { useToast } from '@/hooks/use-toast';
 import { FieldSelector } from '@/components/field-selector';
 import { DynamicFormGenerator } from '@/components/dynamic-form-generator';
 import { getFieldConfiguration } from '@/lib/field-config';
+import { GenerationProgress } from '@/components/generation-progress';
 
 interface ProposalFormData {
   clientName: string;
@@ -91,17 +92,19 @@ export function EnhancedProposalForm() {
         body: JSON.stringify(formData),
       });
 
-      if (!response.ok) {
-        throw new Error("Failed to generate proposal");
-      }
-
       const result = await response.json();
+      if (!response.ok) {
+        const detail = Array.isArray(result?.fields) && typeof result.fields[0] === "string"
+          ? result.fields[0]
+          : typeof result?.error === "string" ? result.error : "Failed to generate proposal"
+        throw new Error(detail)
+      }
       router.push(`/proposal/${result.id}`);
     } catch (error) {
       console.error("Error generating proposal:", error);
       toast({
         title: "Generation Failed",
-        description: "There was an error generating your proposal. Please try again.",
+        description: error instanceof Error ? error.message : "There was an error generating your proposal. Please try again.",
         variant: "destructive",
       });
       setStep('form');
@@ -115,20 +118,7 @@ export function EnhancedProposalForm() {
   if (step === 'generation') {
     return (
       <div className="max-w-2xl mx-auto text-center py-12">
-        <div className="space-y-6">
-          <div className="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center mx-auto">
-            <Loader2 className="w-8 h-8 text-primary animate-spin" />
-          </div>
-          <div>
-            <h3 className="text-xl font-semibold mb-2">Generating Your Proposal</h3>
-            <p className="text-muted-foreground">
-              Our AI is creating a customized {fieldConfig?.name.toLowerCase()} proposal for you...
-            </p>
-          </div>
-          <div className="text-sm text-muted-foreground">
-            This usually takes 30-60 seconds
-          </div>
-        </div>
+        <GenerationProgress documentType="proposal" accent="primary" />
       </div>
     );
   }

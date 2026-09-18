@@ -4,9 +4,10 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { ExportButton } from "@/components/export-button"
-import { ArrowLeft, Share, Edit, FileText, Zap } from "lucide-react"
+import { ArrowLeft, Edit, FileText, Zap } from "lucide-react"
 import Link from "next/link"
 import { prisma } from "@/lib/prisma"
+import { isMongoObjectId } from "@/lib/mongo-id"
 
 interface ProposalPageProps {
   params: Promise<{
@@ -16,6 +17,7 @@ interface ProposalPageProps {
 
 // Function to get proposal data from database
 async function getProposal(id: string, userId: string) {
+  if (!isMongoObjectId(id)) return null
   const proposal = await prisma.document.findFirst({
     where: {
       id: id,
@@ -74,13 +76,11 @@ export default async function ProposalPage({ params }: ProposalPageProps) {
               </div>
             </div>
             <div className="flex items-center gap-2">
-              <Button variant="outline" size="sm">
-                <Share className="w-4 h-4 mr-2" />
-                Share
-              </Button>
-              <Button variant="outline" size="sm">
-                <Edit className="w-4 h-4 mr-2" />
-                Edit
+              <Button variant="outline" size="sm" asChild>
+                <Link href={`/documents/${proposal.id}/edit`}>
+                  <Edit className="w-4 h-4 mr-2" />
+                  Edit
+                </Link>
               </Button>
               <ExportButton documentId={proposal.id} documentType="proposal" documentTitle={proposal.projectTitle || "Proposal"} />
             </div>
@@ -173,9 +173,11 @@ export default async function ProposalPage({ params }: ProposalPageProps) {
 
           {/* Action Buttons */}
           <div className="flex justify-center gap-4 mt-8">
-            <Button variant="outline" size="lg">
-              <Edit className="w-4 h-4 mr-2" />
-              Edit Proposal
+            <Button variant="outline" size="lg" asChild>
+              <Link href={`/documents/${proposal.id}/edit`}>
+                <Edit className="w-4 h-4 mr-2" />
+                Edit Proposal
+              </Link>
             </Button>
             <ExportButton documentId={proposal.id} documentType="proposal" documentTitle={proposal.projectTitle || "Proposal"} />
           </div>

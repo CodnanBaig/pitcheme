@@ -1,123 +1,116 @@
-describe('Security Tests', () => {
-  describe('Input Validation', () => {
-    it('should sanitize user inputs to prevent XSS', () => {
-      // Test that HTML/JS injection is prevented
-      const maliciousInput = '<script>alert("xss")</script>'
-      // Verify that this input is sanitized before storage/display
-      expect(true).toBe(true)
-    })
+import nextConfig from "@/next.config"
+import { hashPassword, verifyPassword } from "@/lib/auth-utils"
+import { validateGenerationBody } from "@/lib/generation-validation"
+import { getRuntimeEnvironmentStatus } from "@/lib/env"
+import { resetRateLimits, checkRateLimit } from "@/lib/rate-limit"
+import { escapeHtml, sanitizeGeneratedHtml } from "@/lib/sanitize-html"
+import { getRequestId } from "@/lib/request-id"
+import { NextRequest } from "next/server"
 
-    it('should validate email formats', () => {
-      // Test email validation in registration
-      const invalidEmails = ['invalid', 'test@', '@domain.com', 'test..test@domain.com']
-      invalidEmails.forEach(email => {
-        // Verify that invalid emails are rejected
-        expect(true).toBe(true)
-      })
-    })
-
-    it('should enforce password strength requirements', () => {
-      // Test password validation
-      const weakPasswords = ['123', 'password', 'abc']
-      weakPasswords.forEach(password => {
-        // Verify weak passwords are rejected
-        expect(true).toBe(true)
-      })
-    })
-
-    it('should validate file upload types and sizes', () => {
-      // Test that only allowed file types are accepted
-      expect(true).toBe(true)
-    })
+describe("security controls", () => {
+  afterEach(() => {
+    resetRateLimits()
   })
 
-  describe('Authentication Security', () => {
-    it('should use secure session tokens', () => {
-      // Test that JWT tokens are properly signed and encrypted
-      expect(true).toBe(true)
-    })
+  it("escapes text and discards executable generated markup", () => {
+    expect(escapeHtml(`<script>alert("x")</script>`)).toBe("&lt;script&gt;alert(&quot;x&quot;)&lt;/script&gt;")
 
-    it('should implement proper session expiration', () => {
-      // Test that sessions expire appropriately
-      expect(true).toBe(true)
-    })
+    const sanitized = sanitizeGeneratedHtml(`<div class="slide" onclick="alert(1)"><script>bad()</script><p>Safe</p></div>`)
 
-    it('should prevent session hijacking', () => {
-      // Test session security measures
-      expect(true).toBe(true)
-    })
-
-    it('should implement rate limiting on login attempts', () => {
-      // Test brute force protection
-      expect(true).toBe(true)
-    })
+    expect(sanitized).toContain('<div class="slide">')
+    expect(sanitized).toContain("<p>Safe</p>")
+    expect(sanitized).not.toContain("script")
+    expect(sanitized).not.toContain("onclick")
   })
 
-  describe('Authorization Controls', () => {
-    it('should enforce user-level access controls', () => {
-      // Test that users can only access their own resources
-      expect(true).toBe(true)
-    })
+  it("hashes passwords and verifies only the matching secret", async () => {
+    const hashed = await hashPassword("correct horse battery staple")
 
-    it('should validate API permissions', () => {
-      // Test that API endpoints require proper authentication
-      expect(true).toBe(true)
-    })
-
-    it('should prevent privilege escalation', () => {
-      // Test that users cannot gain unauthorized access
-      expect(true).toBe(true)
-    })
+    await expect(verifyPassword("correct horse battery staple", hashed)).resolves.toBe(true)
+    await expect(verifyPassword("wrong password", hashed)).resolves.toBe(false)
+    expect(hashed).not.toContain("correct horse")
   })
 
-  describe('Data Protection', () => {
-    it('should hash passwords securely', () => {
-      // Test bcrypt implementation with proper salt rounds
-      expect(true).toBe(true)
-    })
+  it("enforces bounded process-local request limits", () => {
+    const options = { limit: 2, windowMs: 60_000 }
 
-    it('should protect sensitive data in logs', () => {
-      // Test that passwords/tokens are not logged
-      expect(true).toBe(true)
-    })
-
-    it('should implement CSRF protection', () => {
-      // Test CSRF token validation
-      expect(true).toBe(true)
-    })
+    expect(checkRateLimit("security-test", options).allowed).toBe(true)
+    expect(checkRateLimit("security-test", options).allowed).toBe(true)
+    expect(checkRateLimit("security-test", options).allowed).toBe(false)
+    expect(checkRateLimit("other-key", options).allowed).toBe(true)
   })
 
-  describe('API Security', () => {
-    it('should validate request signatures for webhooks', () => {
-      // Test Stripe webhook signature validation
-      expect(true).toBe(true)
-    })
+  it("rejects oversized and malformed generation input before provider calls", () => {
+    const result = validateGenerationBody({
+      clientName: "Client",
+      projectDescription: "x".repeat(10_001),
+      goals: "Goal",
+      fieldSpecificData: [],
+    }, ["clientName", "projectDescription", "goals"])
 
-    it('should implement proper CORS policies', () => {
-      // Test cross-origin request handling
-      expect(true).toBe(true)
-    })
-
-    it('should use HTTPS in production', () => {
-      // Test SSL/TLS configuration
-      expect(true).toBe(true)
-    })
-
-    it('should set security headers', () => {
-      // Test security headers (X-Frame-Options, etc.)
-      expect(true).toBe(true)
-    })
+    expect(result.valid).toBe(false)
+    if (!result.valid) {
+      expect(result.errors).toEqual(expect.arrayContaining([
+        "projectDescription must be 10000 characters or fewer",
+        "fieldSpecificData must be an object",
+      ]))
+    }
   })
 
-  describe('Error Handling Security', () => {
-    it('should not expose sensitive information in error messages', () => {
-      // Test that stack traces and DB errors are not exposed
-      expect(true).toBe(true)
+  it("requires production HTTPS, database, AI, and secret configuration", () => {
+    const original = {
+      nodeEnv: process.env.NODE_ENV,
+      databaseUrl: process.env.DATABASE_URL,
+      nextAuthUrl: process.env.NEXTAUTH_URL,
+      nextAuthSecret: process.env.NEXTAUTH_SECRET,
+      openRouterKey: process.env.OPENROUTER_API_KEY,
+    }
+
+    try {
+      process.env.NODE_ENV = "production"
+      process.env.DATABASE_URL = "sqlite:./dev.db"
+      process.env.NEXTAUTH_URL = "http://localhost:3000"
+      process.env.NEXTAUTH_SECRET = "short"
+      delete process.env.OPENROUTER_API_KEY
+
+      const status = getRuntimeEnvironmentStatus()
+
+      expect(status.ok).toBe(false)
+      expect(status.errors).toEqual(expect.arrayContaining([
+        "DATABASE_URL must use a MongoDB connection string",
+        "OPENROUTER_API_KEY is required in production",
+        "NEXTAUTH_URL must use https:// in production",
+        "NEXTAUTH_SECRET must be at least 32 characters in production",
+      ]))
+    } finally {
+      process.env.NODE_ENV = original.nodeEnv
+      process.env.DATABASE_URL = original.databaseUrl
+      process.env.NEXTAUTH_URL = original.nextAuthUrl
+      process.env.NEXTAUTH_SECRET = original.nextAuthSecret
+      process.env.OPENROUTER_API_KEY = original.openRouterKey
+    }
+  })
+
+  it("returns only the intended security headers", async () => {
+    const headerGroups = await nextConfig.headers?.()
+    const headers = headerGroups?.[0]?.headers ?? []
+    const values = Object.fromEntries(headers.map((header) => [header.key, header.value]))
+
+    expect(values).toMatchObject({
+      "X-Content-Type-Options": "nosniff",
+      "X-Frame-Options": "DENY",
+      "Referrer-Policy": "strict-origin-when-cross-origin",
+    })
+    expect(values["Permissions-Policy"]).toContain("camera=()")
+    expect(values["Content-Security-Policy"]).toContain("default-src 'self'")
+    expect(values["Content-Security-Policy"]).toContain("frame-ancestors 'none'")
+  })
+
+  it("rejects unsafe caller request IDs and generates a bounded replacement", () => {
+    const request = new NextRequest("http://localhost", {
+      headers: { "x-request-id": "unsafe value with secrets" },
     })
 
-    it('should log security events appropriately', () => {
-      // Test security event logging
-      expect(true).toBe(true)
-    })
+    expect(getRequestId(request)).toMatch(/^[0-9a-f-]{36}$/)
   })
 })

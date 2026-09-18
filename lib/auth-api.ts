@@ -58,7 +58,18 @@ export async function authenticatedFetch(
     }
 
     if (!response.ok) {
-      throw new AuthApiError(`Request failed: ${response.statusText}`, response.status)
+      let message = `Request failed: ${response.statusText || response.status}`
+      try {
+        const payload = await response.json() as { error?: unknown; fields?: unknown }
+        const fieldError = Array.isArray(payload.fields) && typeof payload.fields[0] === "string"
+          ? payload.fields[0]
+          : undefined
+        if (fieldError) message = fieldError
+        else if (typeof payload.error === "string") message = payload.error
+      } catch {
+        // Preserve the status-based message when the server did not return JSON.
+      }
+      throw new AuthApiError(message, response.status)
     }
 
     return response

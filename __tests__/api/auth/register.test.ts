@@ -1,13 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { createMocks } from 'node-mocks-http'
 import { POST } from '@/app/api/auth/register/route'
 import { prisma } from '@/lib/prisma'
 import { hashPassword } from '@/lib/auth-utils'
 
 // Mock Prisma
 jest.mock('@/lib/prisma', () => ({
-  user: {
-    findUnique: jest.fn(),
-    create: jest.fn(),
+  prisma: {
+    user: {
+      findUnique: jest.fn(),
+      create: jest.fn(),
+    },
   },
 }))
 
@@ -187,8 +190,8 @@ describe('/api/auth/register', () => {
       const response = await POST(request as any)
       const result = await response.json()
 
-      expect(response.status).toBe(500)
-      expect(result.error).toBe('Internal server error')
+      expect(response.status).toBe(400)
+      expect(result.error).toBe('Invalid JSON request body')
     })
 
     it('should register user without name', async () => {

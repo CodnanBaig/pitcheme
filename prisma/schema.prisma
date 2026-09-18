@@ -49,6 +49,8 @@ model User {
   subscription  UserSubscription?
   usage         Usage[]
   documents     Document[]
+  documentVersions DocumentVersion[]
+  generations   Generation[]
 }
 
 model VerificationToken {
@@ -101,4 +103,62 @@ model Document {
   createdAt     DateTime @default(now())
 
   user User @relation(fields: [userId], references: [id])
+  versions DocumentVersion[]
+  generations Generation[]
+}
+
+model DocumentVersion {
+  id            String   @id @default(auto()) @map("_id") @db.ObjectId
+  documentId    String   @db.ObjectId
+  userId        String   @db.ObjectId
+  version       Int
+  type          String
+  clientName    String?
+  clientCompany String?
+  projectTitle  String?
+  content       String
+  metadata      String?
+  createdAt     DateTime @default(now())
+
+  document Document @relation(fields: [documentId], references: [id])
+  user     User     @relation(fields: [userId], references: [id])
+
+  @@unique([documentId, version])
+  @@index([userId, createdAt])
+}
+
+model Generation {
+  id              String    @id @default(auto()) @map("_id") @db.ObjectId
+  requestId       String
+  userId          String    @db.ObjectId
+  documentId      String?   @db.ObjectId
+  generationType  String
+  provider        String
+  model           String?
+  promptVersion   String?
+  totalTokens     Int       @default(0)
+  durationMs      Int       @default(0)
+  estimatedCost   Float?
+  status          String
+  errorCode       String?
+  repairAttempted Boolean   @default(false)
+  createdAt       DateTime  @default(now())
+
+  user     User      @relation(fields: [userId], references: [id])
+  document Document? @relation(fields: [documentId], references: [id])
+
+  @@index([userId, createdAt])
+  @@index([requestId, createdAt])
+  @@index([documentId, createdAt])
+}
+
+model RateLimitBucket {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  key       String   @unique
+  count     Int      @default(0)
+  resetAt   DateTime
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([resetAt])
 }

@@ -1,33 +1,59 @@
-# PitchMe Setup Guide
+# PitchGenie Setup Guide
 
 ## Environment Variables Setup
 
-Create a `.env.local` file in the root directory with the following variables:
+Copy `.env.example` to `.env.local` and replace the placeholders. The Prisma
+schema uses MongoDB in local, preview, and production environments.
 
 ### Required Variables
 
 ```bash
 # Database Configuration
-DATABASE_URL="file:./dev.db"
+DATABASE_URL="mongodb://127.0.0.1:27017/pitchgenie"
 
 # NextAuth Configuration
-NEXTAUTH_SECRET=your-secret-key-here-change-in-production
+NEXTAUTH_SECRET=replace-with-a-long-random-secret
 NEXTAUTH_URL=http://localhost:3000
 
-# Email Authentication Configuration (Required for user sign-in)
+# AI generation (required for generation routes)
+OPENROUTER_API_KEY=your-openrouter-key
+
+# Optional blended paid-model rate in USD per million tokens
+AI_COST_PER_MILLION_TOKENS=
+
+# Optional release identifier shown by readiness checks
+APP_VERSION=0.1.0
+
+# Optional live provider probes (keep false for local/CI)
+HEALTHCHECK_EXTERNAL_SERVICES=false
+
+# Optional export-runtime probe; set true in production to require Chromium
+HEALTHCHECK_EXPORT_RUNTIME=false
+
+# Shared rate-limit store: mongodb enables distributed rate limits and atomic
+# monthly usage reservations. Use process only for local-only development.
+RATE_LIMIT_STORE=process
+
+# Optional deployment-provided Chromium path for PDF exports
+CHROMIUM_EXECUTABLE_PATH=
+
+# Email magic links (optional; credentials auth works without SMTP)
 EMAIL_SERVER_HOST=smtp.gmail.com
 EMAIL_SERVER_PORT=587
 EMAIL_SERVER_USER=your-gmail@gmail.com
 EMAIL_SERVER_PASSWORD=your-app-password-or-password
-EMAIL_FROM=noreply@pitchme.com
+EMAIL_FROM=noreply@example.com
 ```
 
 ### Optional Variables (for additional features)
 
 ```bash
-# Stripe Configuration (for billing features)
+# Stripe Configuration (keep disabled until test-mode verification is complete)
+STRIPE_BILLING_ENABLED=false
 STRIPE_SECRET_KEY=sk_test_your-stripe-secret-key
-STRIPE_PUBLISHABLE_KEY=pk_test_your-stripe-publishable-key
+STRIPE_PRO_PRICE_ID=price_your_pro_price
+STRIPE_ENTERPRISE_PRICE_ID=price_your_enterprise_price
+NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY=pk_test_your-stripe-publishable-key
 STRIPE_WEBHOOK_SECRET=whsec_your-webhook-secret
 ```
 
@@ -40,11 +66,11 @@ STRIPE_WEBHOOK_SECRET=whsec_your-webhook-secret
 
 2. **Set up the database:**
    ```bash
-   # Generate the Prisma client
-   npx prisma generate
+# Generate the Prisma client
+   pnpm db:generate
 
-   # Create and migrate the database
-   npx prisma db push
+   # Synchronize the MongoDB schema
+   pnpm db:push
    ```
 
 3. **Generate a secure secret:**
@@ -60,35 +86,18 @@ STRIPE_WEBHOOK_SECRET=whsec_your-webhook-secret
 
 ## Database Setup
 
-This project uses SQLite for development (easy setup) and can be easily switched to PostgreSQL or MySQL for production.
-
-### SQLite (Development - Default)
-SQLite is automatically set up and requires no additional configuration. The database file will be created at `./dev.db` in your project root.
-
-### PostgreSQL (Production)
-1. Install PostgreSQL locally or use a cloud provider (AWS RDS, Google Cloud SQL, etc.)
-2. Update `DATABASE_URL` in `.env.local`:
-   ```bash
-   DATABASE_URL="postgresql://username:password@localhost:5432/pitchme"
-   ```
-
-### MySQL (Production)
-1. Install MySQL locally or use a cloud provider
-2. Update `DATABASE_URL` in `.env.local`:
-   ```bash
-   DATABASE_URL="mysql://username:password@localhost:3306/pitchme"
-   ```
+This project uses MongoDB through Prisma. A local MongoDB server is convenient
+for development; a hosted MongoDB cluster is recommended for preview and
+production. `prisma db push` synchronizes the schema because Prisma migrations
+are not used for this MongoDB datasource.
 
 ### Database Management
 ```bash
 # View your database in a browser
 pnpm db:studio
 
-# Reset and recreate the database
-npx prisma db push --force-reset
-
-# Create a migration (for schema changes)
-npx prisma migrate dev --name your-migration-name
+# Synchronize the MongoDB schema
+pnpm db:deploy
 ```
 
 ## Google OAuth Setup (Optional)
@@ -103,7 +112,8 @@ npx prisma migrate dev --name your-migration-name
 
 ## Email Authentication Setup
 
-The application uses email magic links for authentication. Configure your email provider:
+The application supports email magic links when SMTP is configured. Credentials
+email/password authentication remains available without SMTP:
 
 ### Gmail (Recommended for Development)
 1. Enable 2-factor authentication on your Gmail account
@@ -124,13 +134,17 @@ You can also use services like:
 - **AWS SES**: Configure with your SMTP credentials
 
 ### Testing Email Authentication
-1. Start the development server
-2. Go to `/auth/signup` or `/auth/signin`
-3. Enter your email address
-4. Check your email for the magic link
-5. Click the link to complete authentication
+1. Configure all SMTP variables in `.env.local`.
+2. Start the development server.
+3. Request a magic link from the sign-in page.
+4. Confirm the link arrives and completes the session.
 
-## Stripe Setup (Optional)
+## Stripe Setup (Optional, staged)
+
+Stripe routes are guarded and disabled by default in the current release. Do
+not advertise paid checkout or collect payment until test-mode products,
+webhook delivery, subscription synchronization, and portal flows have been
+verified end to end. When that work is enabled:
 
 1. Create a [Stripe account](https://stripe.com/)
 2. Get your API keys from the dashboard
@@ -145,14 +159,13 @@ You can also use services like:
    - Restart your development server after adding environment variables
 
 2. **"Cannot connect to database"**
-   - For SQLite: Check if the database file exists at `./dev.db`
-   - For PostgreSQL/MySQL: Check if the database server is running
-   - Verify the connection string format
-   - Ensure network access (for cloud databases)
+   - Check that the MongoDB server or hosted cluster is reachable
+   - Verify the connection string and cluster network allow-list
+   - Ensure the selected database user can read and write the required collections
 
 3. **Prisma client issues**
-   - Run `npx prisma generate` to regenerate the client
-   - Run `npx prisma db push` to sync the database schema
+   - Run `pnpm db:generate` to regenerate the client
+   - Run `pnpm db:push` to sync the MongoDB schema
 
 4. **Authentication errors**
    - Verify `NEXTAUTH_SECRET` is set
@@ -169,8 +182,8 @@ You can also use services like:
 pnpm install
 
 # Set up database
-npx prisma generate
-npx prisma db push
+pnpm db:generate
+pnpm db:push
 
 # Run development server
 pnpm dev
@@ -179,7 +192,7 @@ pnpm dev
 pnpm db:studio    # Open Prisma Studio (database browser)
 pnpm db:generate  # Regenerate Prisma client
 pnpm db:push      # Push schema changes to database
-pnpm db:migrate   # Create and run migrations
+pnpm db:deploy    # Alias for MongoDB schema synchronization
 
 # Build for production
 pnpm build
@@ -189,18 +202,24 @@ pnpm start
 
 # Run linting
 pnpm lint
+
+# Run the Chromium production smoke suite (the local harness synchronizes its
+# MongoDB schema/indexes before starting the built server). Point
+# E2E_DATABASE_URL at an isolated database; existing test data is not reset.
+# The suite starts the current build unless E2E_REUSE_SERVER=true is explicit.
+pnpm exec playwright install chromium
+pnpm test:e2e
 ```
 
 ## File Structure
 
 ```
-pitchme/
+pitchgenie/
 ├── app/                    # Next.js app directory
 ├── components/            # Reusable UI components
 ├── lib/                   # Utility functions and configurations
-├── prisma/               # Database schema and migrations
-│   ├── schema.prisma     # Database schema definition
-│   └── migrations/       # Database migrations
+├── prisma/               # Database schema
+│   └── schema.prisma     # Database schema definition
 ├── auth.ts               # NextAuth configuration
 ├── .env.local            # Environment variables (create this)
 └── package.json          # Dependencies and scripts
@@ -210,7 +229,7 @@ pitchme/
 
 After setting up the environment variables:
 
-1. Set up the database: `npx prisma db push`
+1. Set up the database: `pnpm db:push`
 2. Start the development server: `pnpm dev`
 3. Open [http://localhost:3000](http://localhost:3000)
 4. Sign up or sign in to test authentication

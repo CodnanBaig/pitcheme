@@ -3,8 +3,10 @@ const mockUserFindUnique = jest.fn()
 const mockVerifyPassword = jest.fn()
 
 jest.mock('@/lib/prisma', () => ({
-  user: {
-    findUnique: mockUserFindUnique,
+  prisma: {
+    user: {
+      findUnique: mockUserFindUnique,
+    },
   },
 }))
 
@@ -20,7 +22,7 @@ import { prisma } from '@/lib/prisma'
 const mockedUserFindUnique = mockUserFindUnique as jest.MockedFunction<any>
 const mockedVerifyPassword = mockVerifyPassword as jest.MockedFunction<any>
 
-// Simulate the credentials provider logic
+// Exercise the credentials provider contract
 async function simulateCredentialsAuth(credentials: any) {
   if (!credentials?.email || !credentials?.password) {
     return null

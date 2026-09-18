@@ -15,6 +15,7 @@ import { DynamicFormGenerator } from '@/components/dynamic-form-generator';
 import { getFieldConfiguration } from '@/lib/field-config';
 import { authenticatedJsonFetch, AuthApiError } from '@/lib/auth-api';
 import { useAuthSession } from '@/hooks/use-auth-session';
+import { GenerationProgress } from '@/components/generation-progress';
 
 interface PitchDeckFormData {
   startupName: string;
@@ -49,7 +50,7 @@ export function EnhancedPitchDeckForm() {
   const [isGenerating, setIsGenerating] = useState(false);
   const router = useRouter();
   const { toast } = useToast();
-  const { isAuthenticated, refreshSession } = useAuthSession();
+  const { refreshSession } = useAuthSession();
 
   const handleFieldSelect = (fieldId: string) => {
     setFormData(prev => ({ ...prev, field: fieldId }));
@@ -75,16 +76,6 @@ export function EnhancedPitchDeckForm() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    // Check authentication first
-    if (!isAuthenticated) {
-      toast({
-        title: "Authentication Required",
-        description: "Please sign in to generate a pitch deck.",
-        variant: "destructive",
-      });
-      return;
-    }
-
     // Validate required fields
     if (!formData.startupName || !formData.problem || !formData.solution || !formData.market) {
       toast({
@@ -105,6 +96,10 @@ export function EnhancedPitchDeckForm() {
         method: "POST",
         body: JSON.stringify(formData),
       });
+
+      if (!result?.id) {
+        throw new Error("The generation service returned an incomplete response. Please try again.")
+      }
 
       console.log("Pitch deck generated successfully:", result);
 
@@ -136,7 +131,7 @@ export function EnhancedPitchDeckForm() {
       } else {
         toast({
           title: "Generation Failed",
-          description: "There was an error generating your pitch deck. Please try again.",
+          description: error instanceof Error ? error.message : "There was an error generating your pitch deck. Please try again.",
           variant: "destructive",
         });
       }
@@ -152,20 +147,7 @@ export function EnhancedPitchDeckForm() {
   if (step === 'generation') {
     return (
       <div className="max-w-2xl mx-auto text-center py-12">
-        <div className="space-y-6">
-          <div className="w-16 h-16 bg-accent/10 rounded-full flex items-center justify-center mx-auto">
-            <Loader2 className="w-8 h-8 text-accent animate-spin" />
-          </div>
-          <div>
-            <h3 className="text-xl font-semibold mb-2">Creating Your Pitch Deck</h3>
-            <p className="text-muted-foreground">
-              Our AI is crafting a compelling {fieldConfig?.name.toLowerCase()} pitch deck with {fieldConfig?.workflows.pitchDeck.slides.length} slides...
-            </p>
-          </div>
-          <div className="text-sm text-muted-foreground">
-            This usually takes 30-60 seconds
-          </div>
-        </div>
+        <GenerationProgress documentType="pitch-deck" accent="accent" />
       </div>
     );
   }

@@ -1,20 +1,20 @@
 // Mock dependencies
-jest.mock('@/auth')
-jest.mock('@/lib/prisma')
-jest.mock('puppeteer')
+jest.mock('@/auth', () => ({ auth: jest.fn() }))
+jest.mock('@/lib/prisma', () => ({ prisma: { document: { findFirst: jest.fn() } } }))
+jest.mock('playwright-core')
 jest.mock('docx')
 
 import { NextRequest } from 'next/server'
 import { GET } from '@/app/api/export/proposal/[id]/route'
 import { auth } from '@/auth'
 import { prisma } from '@/lib/prisma'
-import puppeteer from 'puppeteer'
+import { chromium } from 'playwright-core'
 import { Document, Packer } from 'docx'
 
 // Type cast the mocks
 const mockAuth = auth as jest.MockedFunction<typeof auth>
 const mockPrismaDocumentFindFirst = prisma.document.findFirst as jest.MockedFunction<typeof prisma.document.findFirst>
-const mockPuppeteer = puppeteer as jest.Mocked<typeof puppeteer>
+const mockChromium = chromium as jest.Mocked<typeof chromium>
 const mockDocument = Document as jest.MockedClass<typeof Document>
 const mockPacker = Packer as jest.Mocked<typeof Packer>
 
@@ -32,7 +32,7 @@ describe('/api/export/proposal/[id]', () => {
   }
 
   const mockProposal = {
-    id: 'prop_123_abc',
+    id: '507f1f77bcf86cd799439011',
     userId: 'user-123',
     type: 'proposal',
     clientName: 'John Doe',
@@ -70,7 +70,7 @@ Total project cost: $50,000`,
   }
 
   beforeEach(() => {
-    mockPuppeteer.launch.mockResolvedValue(mockBrowser as any)
+    mockChromium.launch.mockResolvedValue(mockBrowser as any)
     mockBrowser.newPage.mockResolvedValue(mockPage as any)
     mockPage.pdf.mockResolvedValue(Buffer.from('mock-pdf-content'))
     mockPacker.toBuffer.mockResolvedValue(Buffer.from('mock-docx-content'))
@@ -81,35 +81,39 @@ Total project cost: $50,000`,
       mockAuth.mockResolvedValue(validSession as any)
       mockPrismaDocumentFindFirst.mockResolvedValue(mockProposal as any)
 
-      const request = new NextRequest('http://localhost:3000/api/export/proposal/prop_123_abc', {
+      const request = new NextRequest('http://localhost:3000/api/export/proposal/507f1f77bcf86cd799439011', {
         method: 'GET'
       })
 
-      const response = await GET(request, { params: Promise.resolve({ id: 'prop_123_abc' }) })
+      const response = await GET(request, { params: Promise.resolve({ id: '507f1f77bcf86cd799439011' }) })
 
       expect(response.status).toBe(200)
       expect(response.headers.get('Content-Type')).toBe('application/pdf')
       expect(response.headers.get('Content-Disposition')).toContain('Custom_CRM_Development.pdf')
+      expect(response.headers.get('X-Request-ID')).toEqual(expect.any(String))
 
       expect(mockAuth).toHaveBeenCalled()
       expect(mockPrismaDocumentFindFirst).toHaveBeenCalledWith({
         where: {
-          id: 'prop_123_abc',
+          id: '507f1f77bcf86cd799439011',
           userId: 'user-123',
           type: 'proposal'
         }
       })
-      expect(mockPuppeteer.launch).toHaveBeenCalled()
-      expect(mockPage.pdf).toHaveBeenCalledWith({
+      expect(mockChromium.launch).toHaveBeenCalled()
+      expect(mockPage.pdf).toHaveBeenCalledWith(expect.objectContaining({
         format: 'A4',
         printBackground: true,
+        displayHeaderFooter: true,
+        headerTemplate: '<span></span>',
+        footerTemplate: expect.stringContaining('pageNumber'),
         margin: {
           top: '20mm',
           right: '20mm',
           bottom: '20mm',
           left: '20mm'
         }
-      })
+      }))
       expect(mockBrowser.close).toHaveBeenCalled()
     })
 
@@ -117,26 +121,26 @@ Total project cost: $50,000`,
       mockAuth.mockResolvedValue(validSession as any)
       mockPrismaDocumentFindFirst.mockResolvedValue(mockProposal as any)
 
-      const request = new NextRequest('http://localhost:3000/api/export/proposal/prop_123_abc', {
+      const request = new NextRequest('http://localhost:3000/api/export/proposal/507f1f77bcf86cd799439011', {
         method: 'GET'
       })
 
-      const response = await GET(request, { params: Promise.resolve({ id: 'prop_123_abc' }) })
+      const response = await GET(request, { params: Promise.resolve({ id: '507f1f77bcf86cd799439011' }) })
 
       expect(response.status).toBe(200)
       expect(response.headers.get('Content-Type')).toBe('application/pdf')
-      expect(mockPuppeteer.launch).toHaveBeenCalled()
+      expect(mockChromium.launch).toHaveBeenCalled()
     })
 
     it('should properly format HTML content for PDF', async () => {
       mockAuth.mockResolvedValue(validSession as any)
       mockPrismaDocumentFindFirst.mockResolvedValue(mockProposal as any)
 
-      const request = new NextRequest('http://localhost:3000/api/export/proposal/prop_123_abc', {
+      const request = new NextRequest('http://localhost:3000/api/export/proposal/507f1f77bcf86cd799439011', {
         method: 'GET'
       })
 
-      await GET(request, { params: Promise.resolve({ id: 'prop_123_abc' }) })
+      await GET(request, { params: Promise.resolve({ id: '507f1f77bcf86cd799439011' }) })
 
       expect(mockPage.setContent).toHaveBeenCalled()
       const htmlContent = mockPage.setContent.mock.calls[0][0]
@@ -147,6 +151,8 @@ Total project cost: $50,000`,
       expect(htmlContent).toContain('<h1>Business Proposal</h1>')
       expect(htmlContent).toContain('<h2>Executive Summary</h2>')
       expect(htmlContent).toContain('<h2>Technical Approach</h2>')
+      expect(htmlContent).toContain('#0e7373')
+      expect(htmlContent).toContain('cover-page')
     })
   })
 
@@ -155,11 +161,11 @@ Total project cost: $50,000`,
       mockAuth.mockResolvedValue(validSession as any)
       mockPrismaDocumentFindFirst.mockResolvedValue(mockProposal as any)
 
-      const request = new NextRequest('http://localhost:3000/api/export/proposal/prop_123_abc?format=docx', {
+      const request = new NextRequest('http://localhost:3000/api/export/proposal/507f1f77bcf86cd799439011?format=docx', {
         method: 'GET'
       })
 
-      const response = await GET(request, { params: Promise.resolve({ id: 'prop_123_abc' }) })
+      const response = await GET(request, { params: Promise.resolve({ id: '507f1f77bcf86cd799439011' }) })
 
       expect(response.status).toBe(200)
       expect(response.headers.get('Content-Type')).toBe('application/vnd.openxmlformats-officedocument.wordprocessingml.document')
@@ -167,27 +173,34 @@ Total project cost: $50,000`,
 
       expect(mockDocument).toHaveBeenCalled()
       expect(mockPacker.toBuffer).toHaveBeenCalled()
-      expect(mockPuppeteer.launch).not.toHaveBeenCalled() // Should not use Puppeteer for DOCX
+      expect(mockChromium.launch).not.toHaveBeenCalled() // DOCX does not require a browser
     })
 
     it('should create proper DOCX document structure', async () => {
       mockAuth.mockResolvedValue(validSession as any)
       mockPrismaDocumentFindFirst.mockResolvedValue(mockProposal as any)
 
-      const request = new NextRequest('http://localhost:3000/api/export/proposal/prop_123_abc?format=docx', {
+      const request = new NextRequest('http://localhost:3000/api/export/proposal/507f1f77bcf86cd799439011?format=docx', {
         method: 'GET'
       })
 
-      await GET(request, { params: Promise.resolve({ id: 'prop_123_abc' }) })
+      await GET(request, { params: Promise.resolve({ id: '507f1f77bcf86cd799439011' }) })
 
-      expect(mockDocument).toHaveBeenCalledWith({
+      expect(mockDocument).toHaveBeenCalledWith(expect.objectContaining({
+        creator: 'PitchGenie',
+        title: 'Custom CRM Development',
         sections: expect.arrayContaining([
           expect.objectContaining({
-            properties: {},
+            properties: expect.objectContaining({
+              page: expect.objectContaining({
+                margin: { top: 1440, right: 1440, bottom: 1440, left: 1440 },
+              }),
+            }),
+            footers: expect.objectContaining({ default: expect.anything() }),
             children: expect.any(Array)
           })
         ])
-      })
+      }))
     })
   })
 
@@ -195,11 +208,11 @@ Total project cost: $50,000`,
     it('should return 401 if user is not authenticated', async () => {
       mockAuth.mockResolvedValue(null)
 
-      const request = new NextRequest('http://localhost:3000/api/export/proposal/prop_123_abc', {
+      const request = new NextRequest('http://localhost:3000/api/export/proposal/507f1f77bcf86cd799439011', {
         method: 'GET'
       })
 
-      const response = await GET(request, { params: Promise.resolve({ id: 'prop_123_abc' }) })
+      const response = await GET(request, { params: Promise.resolve({ id: '507f1f77bcf86cd799439011' }) })
       const result = await response.json()
 
       expect(response.status).toBe(401)
@@ -211,33 +224,47 @@ Total project cost: $50,000`,
       mockAuth.mockResolvedValue(validSession as any)
       mockPrismaDocumentFindFirst.mockResolvedValue(null)
 
-      const request = new NextRequest('http://localhost:3000/api/export/proposal/nonexistent', {
+      const request = new NextRequest('http://localhost:3000/api/export/proposal/507f1f77bcf86cd799439099', {
         method: 'GET'
       })
 
-      const response = await GET(request, { params: Promise.resolve({ id: 'nonexistent' }) })
+      const response = await GET(request, { params: Promise.resolve({ id: '507f1f77bcf86cd799439099' }) })
       const result = await response.json()
 
       expect(response.status).toBe(404)
       expect(result.error).toBe('Proposal not found')
     })
 
+    it('should reject a malformed proposal ID before querying Prisma', async () => {
+      mockAuth.mockResolvedValue(validSession as any)
+
+      const response = await GET(
+        new NextRequest('http://localhost:3000/api/export/proposal/not-an-object-id'),
+        { params: Promise.resolve({ id: 'not-an-object-id' }) },
+      )
+      const result = await response.json()
+
+      expect(response.status).toBe(400)
+      expect(result.error).toBe('Invalid proposal ID')
+      expect(mockPrismaDocumentFindFirst).not.toHaveBeenCalled()
+    })
+
     it('should return 404 if user tries to access another users proposal', async () => {
       mockAuth.mockResolvedValue(validSession as any)
       mockPrismaDocumentFindFirst.mockResolvedValue(null) // Prisma returns null due to userId mismatch
 
-      const request = new NextRequest('http://localhost:3000/api/export/proposal/prop_123_abc', {
+      const request = new NextRequest('http://localhost:3000/api/export/proposal/507f1f77bcf86cd799439011', {
         method: 'GET'
       })
 
-      const response = await GET(request, { params: Promise.resolve({ id: 'prop_123_abc' }) })
+      const response = await GET(request, { params: Promise.resolve({ id: '507f1f77bcf86cd799439011' }) })
       const result = await response.json()
 
       expect(response.status).toBe(404)
       expect(result.error).toBe('Proposal not found')
       expect(mockPrismaDocumentFindFirst).toHaveBeenCalledWith({
         where: {
-          id: 'prop_123_abc',
+          id: '507f1f77bcf86cd799439011',
           userId: 'user-123',
           type: 'proposal'
         }
@@ -248,11 +275,11 @@ Total project cost: $50,000`,
       mockAuth.mockResolvedValue(validSession as any)
       mockPrismaDocumentFindFirst.mockResolvedValue(mockProposal as any)
 
-      const request = new NextRequest('http://localhost:3000/api/export/proposal/prop_123_abc?format=invalid', {
+      const request = new NextRequest('http://localhost:3000/api/export/proposal/507f1f77bcf86cd799439011?format=invalid', {
         method: 'GET'
       })
 
-      const response = await GET(request, { params: Promise.resolve({ id: 'prop_123_abc' }) })
+      const response = await GET(request, { params: Promise.resolve({ id: '507f1f77bcf86cd799439011' }) })
       const result = await response.json()
 
       expect(response.status).toBe(400)
@@ -263,11 +290,11 @@ Total project cost: $50,000`,
       mockAuth.mockResolvedValue(validSession as any)
       mockPrismaDocumentFindFirst.mockRejectedValue(new Error('Database connection failed'))
 
-      const request = new NextRequest('http://localhost:3000/api/export/proposal/prop_123_abc', {
+      const request = new NextRequest('http://localhost:3000/api/export/proposal/507f1f77bcf86cd799439011', {
         method: 'GET'
       })
 
-      const response = await GET(request, { params: Promise.resolve({ id: 'prop_123_abc' }) })
+      const response = await GET(request, { params: Promise.resolve({ id: '507f1f77bcf86cd799439011' }) })
       const result = await response.json()
 
       expect(response.status).toBe(500)
@@ -283,13 +310,13 @@ Total project cost: $50,000`,
       mockAuth.mockResolvedValue(validSession as any)
       mockPrismaDocumentFindFirst.mockResolvedValue(proposalWithSpecialChars as any)
 
-      const request = new NextRequest('http://localhost:3000/api/export/proposal/prop_123_abc', {
+      const request = new NextRequest('http://localhost:3000/api/export/proposal/507f1f77bcf86cd799439011', {
         method: 'GET'
       })
 
-      const response = await GET(request, { params: Promise.resolve({ id: 'prop_123_abc' }) })
+      const response = await GET(request, { params: Promise.resolve({ id: '507f1f77bcf86cd799439011' }) })
 
-      expect(response.headers.get('Content-Disposition')).toContain('Project____with_Special_Chars___.pdf')
+      expect(response.headers.get('Content-Disposition')).toContain('Project_with_Special_Chars.pdf')
     })
   })
 
@@ -299,11 +326,11 @@ Total project cost: $50,000`,
       mockPrismaDocumentFindFirst.mockResolvedValue(mockProposal as any)
       mockPage.pdf.mockRejectedValue(new Error('PDF generation failed'))
 
-      const request = new NextRequest('http://localhost:3000/api/export/proposal/prop_123_abc', {
+      const request = new NextRequest('http://localhost:3000/api/export/proposal/507f1f77bcf86cd799439011', {
         method: 'GET'
       })
 
-      const response = await GET(request, { params: Promise.resolve({ id: 'prop_123_abc' }) })
+      const response = await GET(request, { params: Promise.resolve({ id: '507f1f77bcf86cd799439011' }) })
       const result = await response.json()
 
       expect(response.status).toBe(500)
@@ -316,27 +343,27 @@ Total project cost: $50,000`,
       mockPrismaDocumentFindFirst.mockResolvedValue(mockProposal as any)
       mockPacker.toBuffer.mockRejectedValue(new Error('DOCX generation failed'))
 
-      const request = new NextRequest('http://localhost:3000/api/export/proposal/prop_123_abc?format=docx', {
+      const request = new NextRequest('http://localhost:3000/api/export/proposal/507f1f77bcf86cd799439011?format=docx', {
         method: 'GET'
       })
 
-      const response = await GET(request, { params: Promise.resolve({ id: 'prop_123_abc' }) })
+      const response = await GET(request, { params: Promise.resolve({ id: '507f1f77bcf86cd799439011' }) })
       const result = await response.json()
 
       expect(response.status).toBe(500)
       expect(result.error).toBe('Failed to export proposal')
     })
 
-    it('should handle Puppeteer launch errors gracefully', async () => {
+    it('should handle browser launch errors gracefully', async () => {
       mockAuth.mockResolvedValue(validSession as any)
       mockPrismaDocumentFindFirst.mockResolvedValue(mockProposal as any)
-      mockPuppeteer.launch.mockRejectedValue(new Error('Puppeteer launch failed'))
+      mockChromium.launch.mockRejectedValue(new Error('Browser launch failed'))
 
-      const request = new NextRequest('http://localhost:3000/api/export/proposal/prop_123_abc', {
+      const request = new NextRequest('http://localhost:3000/api/export/proposal/507f1f77bcf86cd799439011', {
         method: 'GET'
       })
 
-      const response = await GET(request, { params: Promise.resolve({ id: 'prop_123_abc' }) })
+      const response = await GET(request, { params: Promise.resolve({ id: '507f1f77bcf86cd799439011' }) })
       const result = await response.json()
 
       expect(response.status).toBe(500)

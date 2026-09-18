@@ -1,64 +1,66 @@
-describe('Database Integration Tests', () => {
-  describe('User Data Isolation', () => {
-    it('should ensure users can only access their own documents', () => {
-      // Test that Prisma queries include userId filtering
-      expect(true).toBe(true) // Placeholder - actual implementation would test Prisma queries
+import fs from "node:fs"
+import path from "node:path"
+import { prisma } from "@/lib/prisma"
+import { getUserSubscription, incrementUsage } from "@/lib/subscription"
+
+const mockSubscriptionFindUnique = prisma.userSubscription.findUnique as jest.MockedFunction<typeof prisma.userSubscription.findUnique>
+const mockSubscriptionCreate = prisma.userSubscription.create as jest.MockedFunction<typeof prisma.userSubscription.create>
+const mockUsageUpsert = prisma.usage.upsert as jest.MockedFunction<typeof prisma.usage.upsert>
+
+describe("database persistence contracts", () => {
+  beforeEach(() => {
+    jest.clearAllMocks()
+  })
+
+  it("declares ownership relations and operational indexes in the Mongo schema", () => {
+    const schema = fs.readFileSync(path.join(process.cwd(), "prisma/schema.prisma"), "utf8")
+
+    expect(schema).toContain("userId        String   @db.ObjectId")
+    expect(schema).toContain("@@unique([documentId, version])")
+    expect(schema).toContain("@@index([userId, createdAt])")
+    expect(schema).toContain("@@index([requestId, createdAt])")
+  })
+
+  it("creates a free subscription when a user has no subscription", async () => {
+    mockSubscriptionFindUnique.mockResolvedValue(null)
+    mockSubscriptionCreate.mockResolvedValue({
+      userId: "user-1",
+      plan: "FREE",
+      status: "active",
+      id: "subscription-1",
+      stripeCustomerId: null,
+      stripeSubscriptionId: null,
+      stripePriceId: null,
+      currentPeriodStart: null,
+      currentPeriodEnd: null,
+      cancelAtPeriodEnd: null,
+      createdAt: new Date(),
+      updatedAt: new Date(),
     })
 
-    it('should prevent cross-user data access', () => {
-      // Test that user A cannot access user B's documents
-      expect(true).toBe(true)
-    })
+    const subscription = await getUserSubscription("user-1")
 
-    it('should maintain data integrity across user operations', () => {
-      // Test that user operations don't affect other users' data
-      expect(true).toBe(true)
+    expect(subscription?.plan).toBe("FREE")
+    expect(mockSubscriptionCreate).toHaveBeenCalledWith({
+      data: { userId: "user-1", plan: "FREE", status: "active" },
     })
   })
 
-  describe('Subscription Enforcement', () => {
-    it('should correctly enforce usage limits for free users', () => {
-      // Test that free users hit usage limits
-      expect(true).toBe(true)
+  it("increments only the selected monthly usage counter", async () => {
+    mockUsageUpsert.mockResolvedValue({
+      id: "usage-1",
+      userId: "user-1",
+      month: "2026-09",
+      proposals: 1,
+      pitchDecks: 0,
     })
 
-    it('should allow unlimited usage for paid users', () => {
-      // Test that PRO/ENTERPRISE users have no limits
-      expect(true).toBe(true)
-    })
+    await incrementUsage("user-1", "proposals")
 
-    it('should track usage correctly across months', () => {
-      // Test that usage tracking resets monthly
-      expect(true).toBe(true)
-    })
-  })
-
-  describe('Data Consistency', () => {
-    it('should maintain referential integrity', () => {
-      // Test foreign key constraints
-      expect(true).toBe(true)
-    })
-
-    it('should handle concurrent operations safely', () => {
-      // Test database transaction handling
-      expect(true).toBe(true)
-    })
-
-    it('should properly serialize JSON metadata', () => {
-      // Test JSON field handling in SQLite
-      expect(true).toBe(true)
-    })
-  })
-
-  describe('Performance Considerations', () => {
-    it('should have appropriate indexes for common queries', () => {
-      // Test that queries are optimized
-      expect(true).toBe(true)
-    })
-
-    it('should handle large datasets efficiently', () => {
-      // Test database performance with scale
-      expect(true).toBe(true)
-    })
+    expect(mockUsageUpsert).toHaveBeenCalledWith(expect.objectContaining({
+      where: { userId_month: expect.objectContaining({ userId: "user-1" }) },
+      update: { proposals: { increment: 1 } },
+      create: expect.objectContaining({ userId: "user-1", proposals: 1, pitchDecks: 0 }),
+    }))
   })
 })

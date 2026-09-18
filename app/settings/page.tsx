@@ -2,12 +2,16 @@ import { auth } from "@/auth"
 import { redirect } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Separator } from "@/components/ui/separator"
 import { Badge } from "@/components/ui/badge"
 import { User, CreditCard, Bell, Shield, Zap, Crown } from "lucide-react"
 import Link from "next/link"
+import { ProfileSettingsForm } from "@/components/profile-settings-form"
+import { getUserSubscription, getUserUsage } from "@/lib/subscription"
+import { STRIPE_PLANS } from "@/lib/stripe"
+import { AuthButton } from "@/components/auth-button"
+import { MobileNav } from "@/components/mobile-nav"
 
 export default async function SettingsPage() {
   const session = await auth()
@@ -15,6 +19,13 @@ export default async function SettingsPage() {
   if (!session) {
     redirect("/auth/signin")
   }
+
+  const [subscription, usage] = await Promise.all([
+    getUserSubscription(session.user.id),
+    getUserUsage(session.user.id),
+  ])
+  const planKey = subscription?.plan || "FREE"
+  const plan = STRIPE_PLANS[planKey] || STRIPE_PLANS.FREE
 
   return (
     <div className="min-h-screen bg-background">
@@ -39,15 +50,18 @@ export default async function SettingsPage() {
                 Settings
               </Link>
             </nav>
-            <div className="flex items-center gap-4">
+            <div className="flex items-center gap-2 sm:gap-4">
               <Badge variant="secondary" className="hidden sm:flex">
-                Free Plan
+                {plan.name}
               </Badge>
-              <div className="w-8 h-8 bg-primary/10 rounded-full flex items-center justify-center">
-                <span className="text-sm font-semibold text-primary">
-                  {session.user?.name?.charAt(0) || session.user?.email?.charAt(0) || "U"}
-                </span>
-              </div>
+              <MobileNav
+                items={[
+                  { href: "/dashboard", label: "Dashboard" },
+                  { href: "/documents", label: "Documents" },
+                  { href: "/settings", label: "Settings" },
+                ]}
+              />
+              <AuthButton />
             </div>
           </div>
         </div>
@@ -70,18 +84,22 @@ export default async function SettingsPage() {
                     <User className="w-4 h-4 mr-2" />
                     Profile
                   </Button>
-                  <Button variant="ghost" className="w-full justify-start">
+                  <Button variant="ghost" className="w-full justify-start" asChild>
+                    <Link href="/billing">
                     <CreditCard className="w-4 h-4 mr-2" />
                     Billing
+                    </Link>
                   </Button>
-                  <Button variant="ghost" className="w-full justify-start">
+                  <div className="flex items-center justify-between rounded-md px-3 py-2 text-sm text-muted-foreground">
                     <Bell className="w-4 h-4 mr-2" />
-                    Notifications
-                  </Button>
-                  <Button variant="ghost" className="w-full justify-start">
+                    <span className="mr-auto">Notifications</span>
+                    <Badge variant="outline" className="text-[10px]">Planned</Badge>
+                  </div>
+                  <div className="flex items-center justify-between rounded-md px-3 py-2 text-sm text-muted-foreground">
                     <Shield className="w-4 h-4 mr-2" />
-                    Security
-                  </Button>
+                    <span className="mr-auto">Security</span>
+                    <Badge variant="outline" className="text-[10px]">Planned</Badge>
+                  </div>
                 </nav>
               </CardContent>
             </Card>
@@ -96,31 +114,7 @@ export default async function SettingsPage() {
                 <CardDescription>Update your personal information and profile settings</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
-                <div className="grid md:grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="name">Full Name</Label>
-                    <Input id="name" defaultValue={session.user?.name || ""} placeholder="Enter your full name" />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="email">Email Address</Label>
-                    <Input
-                      id="email"
-                      type="email"
-                      defaultValue={session.user?.email || ""}
-                      placeholder="Enter your email"
-                      disabled
-                    />
-                  </div>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="company">Company Name</Label>
-                  <Input id="company" placeholder="Enter your company name" />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="bio">Bio</Label>
-                  <Input id="bio" placeholder="Tell us about yourself" />
-                </div>
-                <Button>Save Changes</Button>
+                <ProfileSettingsForm initialName={session.user?.name || ""} email={session.user?.email || ""} />
               </CardContent>
             </Card>
 
@@ -136,10 +130,12 @@ export default async function SettingsPage() {
               <CardContent>
                 <div className="flex items-center justify-between p-4 border border-border rounded-lg mb-4">
                   <div>
-                    <h3 className="font-medium text-foreground">Free Plan</h3>
-                    <p className="text-sm text-muted-foreground">1 proposal and 1 pitch deck per month</p>
+                    <h3 className="font-medium text-foreground">{plan.name}</h3>
+                    <p className="text-sm text-muted-foreground">
+                      {plan.limits.proposals === -1 ? "Unlimited proposals" : `${plan.limits.proposals} proposals`} and {plan.limits.pitchDecks === -1 ? "unlimited pitch decks" : `${plan.limits.pitchDecks} pitch decks`} per month
+                    </p>
                   </div>
-                  <Badge variant="secondary">Current Plan</Badge>
+                  <Badge variant={planKey === "FREE" ? "secondary" : "default"}>Current Plan</Badge>
                 </div>
                 <div className="space-y-4">
                   <div className="text-sm text-muted-foreground">
@@ -147,11 +143,11 @@ export default async function SettingsPage() {
                     <div className="mt-2 space-y-1">
                       <div className="flex justify-between">
                         <span>Proposals</span>
-                        <span>0 / 1</span>
+                        <span>{usage.proposals} / {plan.limits.proposals === -1 ? "∞" : plan.limits.proposals}</span>
                       </div>
                       <div className="flex justify-between">
                         <span>Pitch Decks</span>
-                        <span>0 / 1</span>
+                        <span>{usage.pitchDecks} / {plan.limits.pitchDecks === -1 ? "∞" : plan.limits.pitchDecks}</span>
                       </div>
                     </div>
                   </div>
@@ -178,9 +174,7 @@ export default async function SettingsPage() {
                     <Label className="text-base">Email Notifications</Label>
                     <p className="text-sm text-muted-foreground">Receive updates about your documents and account</p>
                   </div>
-                  <Button variant="outline" size="sm">
-                    Configure
-                  </Button>
+                  <Badge variant="outline">Planned</Badge>
                 </div>
                 <Separator />
                 <div className="flex items-center justify-between">
@@ -188,9 +182,7 @@ export default async function SettingsPage() {
                     <Label className="text-base">Default Template</Label>
                     <p className="text-sm text-muted-foreground">Choose your preferred document template</p>
                   </div>
-                  <Button variant="outline" size="sm">
-                    Select
-                  </Button>
+                  <Badge variant="outline">Planned</Badge>
                 </div>
               </CardContent>
             </Card>

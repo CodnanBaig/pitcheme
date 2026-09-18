@@ -8,7 +8,9 @@ const createJestConfig = nextJest({
 // Add any custom config to be passed to Jest
 const customJestConfig = {
   setupFilesAfterEnv: ['<rootDir>/jest.setup.js'],
-  testEnvironment: 'jest-environment-jsdom',
+  // API, database, and export tests exercise Node request/response behavior.
+  // Component tests can opt into jsdom with a per-file docblock when needed.
+  testEnvironment: 'node',
   watchman: false,
   collectCoverageFrom: [
     'app/**/*.{js,jsx,ts,tsx}',
@@ -24,14 +26,11 @@ const customJestConfig = {
   testPathIgnorePatterns: [
     '<rootDir>/.next/',
     '<rootDir>/node_modules/',
+    '<rootDir>/e2e/',
   ],
   transform: {
     '^.+\\.(js|jsx|ts|tsx)$': ['babel-jest', { presets: ['next/babel'] }],
   },
-  transformIgnorePatterns: [
-    '/node_modules/',
-    '^.+\\.module\\.(css|sass|scss)$',
-  ],
   moduleNameMapper: {
     '^@/(.*)$': '<rootDir>/$1',
   },

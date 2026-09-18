@@ -2,21 +2,12 @@
 
 import { useSession } from "next-auth/react"
 import { useRouter } from "next/navigation"
-import { useEffect, useState } from "react"
+import { useState } from "react"
 
 export function useAuthSession() {
   const { data: session, status } = useSession()
   const router = useRouter()
   const [isRefreshing, setIsRefreshing] = useState(false)
-
-  useEffect(() => {
-    if (status === "loading") return // Still loading
-
-    if (status === "unauthenticated") {
-      console.log("User is not authenticated, redirecting to signin")
-      router.push("/auth/signin")
-    }
-  }, [status, router])
 
   const refreshSession = async () => {
     if (isRefreshing) return
@@ -48,4 +39,3 @@ export function useAuthSession() {
     isRefreshing
   }
 }
-

@@ -1,120 +1,66 @@
-describe('Performance Tests', () => {
-  describe('API Response Times', () => {
-    it('should respond to authentication requests under 1 second', async () => {
-      // Test auth endpoint performance
-      const startTime = Date.now()
-      // Simulate auth request
-      const endTime = Date.now()
-      const responseTime = endTime - startTime
-      expect(responseTime).toBeLessThan(1000)
-    })
+import { normalizeStructuredOutput } from "@/lib/structured-output"
+import { validateGeneratedContent } from "@/lib/generation-output"
+import { checkRateLimit, resetRateLimits } from "@/lib/rate-limit"
+import { safeFilename } from "@/lib/safe-filename"
+import { sanitizeGeneratedHtml } from "@/lib/sanitize-html"
 
-    it('should generate documents under 5 seconds', async () => {
-      // Test document generation performance
-      const startTime = Date.now()
-      // Simulate document generation
-      const endTime = Date.now()
-      const responseTime = endTime - startTime
-      expect(responseTime).toBeLessThan(5000)
-    })
-
-    it('should export files under 3 seconds', async () => {
-      // Test file export performance
-      const startTime = Date.now()
-      // Simulate file export
-      const endTime = Date.now()
-      const responseTime = endTime - startTime
-      expect(responseTime).toBeLessThan(3000)
-    })
+describe("performance contracts", () => {
+  afterEach(() => {
+    resetRateLimits()
   })
 
-  describe('Concurrent Load Handling', () => {
-    it('should handle 10 concurrent document generations', async () => {
-      // Test concurrent processing
-      const promises = Array.from({ length: 10 }, () => 
-        Promise.resolve('mock-generation')
-      )
-      const results = await Promise.all(promises)
-      expect(results).toHaveLength(10)
-    })
+  it("handles a burst of bounded rate-limit checks without exceeding the guard window", () => {
+    const startedAt = performance.now()
+    const results = Array.from({ length: 1_000 }, (_, index) =>
+      checkRateLimit(`performance-${index}`, { limit: 2, windowMs: 60_000 }),
+    )
 
-    it('should handle 50 concurrent file exports', async () => {
-      // Test export scaling
-      const promises = Array.from({ length: 50 }, () => 
-        Promise.resolve('mock-export')
-      )
-      const results = await Promise.all(promises)
-      expect(results).toHaveLength(50)
-    })
-
-    it('should handle 100 concurrent login requests', async () => {
-      // Test authentication scaling
-      const promises = Array.from({ length: 100 }, () => 
-        Promise.resolve('mock-auth')
-      )
-      const results = await Promise.all(promises)
-      expect(results).toHaveLength(100)
-    })
+    expect(results).toHaveLength(1_000)
+    expect(results.every((result) => result.allowed)).toBe(true)
+    expect(performance.now() - startedAt).toBeLessThan(500)
   })
 
-  describe('Resource Usage', () => {
-    it('should not exceed memory limits during PDF generation', () => {
-      // Test memory usage
-      const memoryBefore = process.memoryUsage().heapUsed
-      // Simulate PDF generation
-      const memoryAfter = process.memoryUsage().heapUsed
-      const memoryIncrease = memoryAfter - memoryBefore
-      expect(memoryIncrease).toBeLessThan(100 * 1024 * 1024) // 100MB limit
+  it("normalizes a structured document within the generation content bound", () => {
+    const raw = JSON.stringify({
+      title: "Performance proposal",
+      executiveSummary: "A measurable delivery plan.",
+      sections: [{ heading: "Scope", body: "A bounded scope.", bullets: ["One outcome"] }],
     })
 
-    it('should clean up resources after operations', () => {
-      // Test resource cleanup
-      expect(true).toBe(true) // Placeholder for cleanup verification
-    })
+    const normalized = normalizeStructuredOutput(raw, "proposal")
+
+    expect(normalized.format).toBe("structured-json")
+    expect(validateGeneratedContent(normalized.content, "proposal")).toMatchObject({ valid: true })
+    expect(normalized.content.length).toBeLessThan(200_000)
   })
 
-  describe('Database Performance', () => {
-    it('should query user data efficiently', async () => {
-      // Test database query performance
-      const startTime = Date.now()
-      // Simulate DB query
-      const endTime = Date.now()
-      const queryTime = endTime - startTime
-      expect(queryTime).toBeLessThan(100) // 100ms limit
-    })
+  it("sanitizes repeated slide markup without retaining executable attributes", () => {
+    const raw = Array.from({ length: 100 }, (_, index) =>
+      `<div class="slide" onclick="bad(${index})"><p>Slide ${index}</p><script>bad()</script></div>`,
+    ).join("")
 
-    it('should handle multiple database connections', () => {
-      // Test connection pooling
-      expect(true).toBe(true)
-    })
+    const sanitized = sanitizeGeneratedHtml(raw)
+
+    expect((sanitized.match(/class="slide"/g) || []).length).toBe(100)
+    expect(sanitized).not.toContain("onclick")
+    expect(sanitized).not.toContain("<script")
   })
 
-  describe('AI Service Performance', () => {
-    it('should handle AI generation within timeout limits', async () => {
-      // Test AI service timeouts
-      const timeout = 30000 // 30 second timeout
-      const startTime = Date.now()
-      // Simulate AI generation
-      const endTime = Date.now()
-      const duration = endTime - startTime
-      expect(duration).toBeLessThan(timeout)
-    })
+  it("keeps export filenames bounded and portable", () => {
+    const filename = safeFilename("../../Quarterly: review / <draft>", "proposal")
 
-    it('should implement proper fallback mechanisms', () => {
-      // Test fallback performance
-      expect(true).toBe(true)
-    })
+    expect(filename).toBe("Quarterly_review_draft")
+    expect(filename).not.toMatch(/[/:<>]/)
+    expect(filename.length).toBeLessThanOrEqual(120)
   })
 
-  describe('Caching and Optimization', () => {
-    it('should cache frequently accessed data', () => {
-      // Test caching implementation
-      expect(true).toBe(true)
-    })
+  it("preserves all results under concurrent bounded work", async () => {
+    const results = await Promise.all(
+      Array.from({ length: 100 }, async (_, index) => ({ index, value: `work-${index}` })),
+    )
 
-    it('should optimize static asset delivery', () => {
-      // Test CDN and static asset performance
-      expect(true).toBe(true)
-    })
+    expect(results).toHaveLength(100)
+    expect(results[0]).toEqual({ index: 0, value: "work-0" })
+    expect(results[99]).toEqual({ index: 99, value: "work-99" })
   })
 })

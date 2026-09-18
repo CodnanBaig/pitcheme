@@ -4,9 +4,11 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { ExportButton } from "@/components/export-button"
-import { ArrowLeft, Share, Edit, PresentationIcon as PresentationChart, Zap } from "lucide-react"
+import { ArrowLeft, Edit, PresentationIcon as PresentationChart, Zap } from "lucide-react"
 import Link from "next/link"
 import { prisma } from "@/lib/prisma"
+import { sanitizeGeneratedHtml } from "@/lib/sanitize-html"
+import { isMongoObjectId } from "@/lib/mongo-id"
 
 // CSS styles for rendering Kimi-K2 generated HTML content
 const pitchDeckStyles = `
@@ -100,6 +102,7 @@ interface PitchDeckPageProps {
 
 // Function to get pitch deck data from database
 async function getPitchDeck(id: string, userId: string) {
+  if (!isMongoObjectId(id)) return null
   const pitchDeck = await prisma.document.findFirst({
     where: {
       id: id,
@@ -116,7 +119,9 @@ async function getPitchDeck(id: string, userId: string) {
     id: pitchDeck.id,
     startupName: pitchDeck.clientName,
     tagline: pitchDeck.projectTitle,
-    content: pitchDeck.content,
+    // Model-generated slide markup is rendered below, so sanitize it at the
+    // server boundary before it can reach dangerouslySetInnerHTML.
+    content: sanitizeGeneratedHtml(pitchDeck.content),
     createdAt: pitchDeck.createdAt.toISOString(),
     status: "completed", // All generated documents are considered completed
   }
@@ -160,13 +165,11 @@ export default async function PitchDeckPage({ params }: PitchDeckPageProps) {
               </div>
             </div>
             <div className="flex items-center gap-2">
-              <Button variant="outline" size="sm">
-                <Share className="w-4 h-4 mr-2" />
-                Share
-              </Button>
-              <Button variant="outline" size="sm">
-                <Edit className="w-4 h-4 mr-2" />
-                Edit
+              <Button variant="outline" size="sm" asChild>
+                <Link href={`/documents/${pitchDeck.id}/edit`}>
+                  <Edit className="w-4 h-4 mr-2" />
+                  Edit
+                </Link>
               </Button>
               <ExportButton
                 documentId={pitchDeck.id}
@@ -266,9 +269,11 @@ export default async function PitchDeckPage({ params }: PitchDeckPageProps) {
 
           {/* Action Buttons */}
           <div className="flex justify-center gap-4 mt-8">
-            <Button variant="outline" size="lg">
-              <Edit className="w-4 h-4 mr-2" />
-              Edit Pitch Deck
+            <Button variant="outline" size="lg" asChild>
+              <Link href={`/documents/${pitchDeck.id}/edit`}>
+                <Edit className="w-4 h-4 mr-2" />
+                Edit Pitch Deck
+              </Link>
             </Button>
             <ExportButton
               documentId={pitchDeck.id}

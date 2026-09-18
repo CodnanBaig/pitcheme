@@ -40,5 +40,6 @@ export interface OpenRouterGenerationResponse {
   tokensUsed: number;
   generationTime: number;
   success: boolean;
+  repairAttempted?: boolean;
   error?: string;
 }

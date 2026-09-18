@@ -1,8 +1,8 @@
-// Simple mock approach to avoid hoisting issues
-jest.mock('@/auth')
-jest.mock('@/lib/subscription')
-jest.mock('@/lib/prisma')
-jest.mock('@/lib/ai-service')
+// Keep API tests independent from the real database and model providers.
+jest.mock('@/auth', () => ({ auth: jest.fn() }))
+jest.mock('@/lib/subscription', () => ({ canUserGenerate: jest.fn(), incrementUsage: jest.fn() }))
+jest.mock('@/lib/prisma', () => ({ prisma: { document: { create: jest.fn() } } }))
+jest.mock('@/lib/ai-service', () => ({ aiService: { generateProposal: jest.fn() } }))
 
 import { NextRequest } from 'next/server'
 import { POST } from '@/app/api/generate/proposal/route'
@@ -61,7 +61,7 @@ describe('/api/generate/proposal - Simple Tests', () => {
     mockCanUserGenerate.mockResolvedValue(true)
     mockAIServiceGenerateProposal.mockResolvedValue(mockAIResponse as any)
     mockPrismaDocumentCreate.mockResolvedValue({
-      id: 'prop_123_abc',
+      id: '507f1f77bcf86cd799439011',
       userId: validSession.user.id,
       type: 'proposal',
       content: mockAIResponse.content
@@ -80,7 +80,7 @@ describe('/api/generate/proposal - Simple Tests', () => {
 
     expect(response.status).toBe(200)
     expect(result.message).toBe('Proposal generated successfully')
-    expect(result.id).toMatch(/^prop_\d+_[a-z0-9]+$/)
+    expect(result.id).toBe('507f1f77bcf86cd799439011')
     expect(result.metadata.field).toBe('technology')
     expect(result.metadata.model).toBe(mockAIResponse.model)
 
@@ -169,7 +169,7 @@ describe('/api/generate/proposal - Simple Tests', () => {
     mockCanUserGenerate.mockResolvedValue(true)
     mockAIServiceGenerateProposal.mockResolvedValue(mockAIResponse as any)
     mockPrismaDocumentCreate.mockResolvedValue({
-      id: 'prop_123_abc',
+      id: '507f1f77bcf86cd799439011',
       userId: validSession.user.id,
       type: 'proposal',
       content: mockAIResponse.content
@@ -204,7 +204,7 @@ describe('/api/generate/proposal - Simple Tests', () => {
     mockCanUserGenerate.mockResolvedValue(true)
     mockAIServiceGenerateProposal.mockResolvedValue(mockAIResponse as any)
     mockPrismaDocumentCreate.mockResolvedValue({
-      id: 'prop_123_abc',
+      id: '507f1f77bcf86cd799439011',
       userId: validSession.user.id,
       type: 'proposal',
       content: mockAIResponse.content

@@ -1,6 +1,19 @@
 import { generateText } from 'ai';
 import { openrouter, selectModel, OpenRouterGenerationResponse } from './openrouter';
 import { getFieldConfiguration } from './field-config';
+import { inspectStructuredOutput, StructuredOutputType } from './structured-output';
+
+const AI_REQUEST_TIMEOUT_MS = 45_000;
+const AI_MAX_PROVIDER_ATTEMPTS = 2;
+const AI_RETRY_DELAY_MS = 250;
+
+type GenerateTextOptions = {
+  model: ReturnType<typeof openrouter>;
+  prompt: string;
+  maxTokens: number;
+  temperature: number;
+  abortSignal: AbortSignal;
+};
 
 export interface ProposalGenerationRequest {
   field: string;
@@ -35,6 +48,10 @@ export interface PitchDeckGenerationRequest {
 export class FieldSpecificAIService {
   
   async generateProposal(data: ProposalGenerationRequest): Promise<OpenRouterGenerationResponse> {
+    if (process.env.E2E_TEST_MODE === "true") {
+      return buildE2EProposalResponse(data)
+    }
+
     const fieldConfig = getFieldConfiguration(data.field);
     if (!fieldConfig) {
       throw new Error(`Unknown field: ${data.field}`);
@@ -46,19 +63,34 @@ export class FieldSpecificAIService {
     const startTime = Date.now();
     
     try {
-      const result = await generateText({
+      const result = await this.generateTextWithRetry({
         model: openrouter(model),
         prompt,
         maxTokens: 4000,
         temperature: 0.7,
+        abortSignal: AbortSignal.timeout(AI_REQUEST_TIMEOUT_MS),
       });
 
+      const repaired = await this.repairStructuredOutput(result.text, 'proposal', model);
+      if (repaired.error) {
+        return {
+          content: '',
+          model,
+          tokensUsed: (result.usage?.totalTokens || 0) + repaired.tokensUsed,
+          generationTime: Date.now() - startTime,
+          success: false,
+          repairAttempted: true,
+          error: repaired.error,
+        };
+      }
+
       return {
-        content: result.text,
+        content: repaired.content,
         model,
-        tokensUsed: result.usage?.totalTokens || 0,
+        tokensUsed: (result.usage?.totalTokens || 0) + repaired.tokensUsed,
         generationTime: Date.now() - startTime,
-        success: true
+        success: true,
+        ...(repaired.repairAttempted ? { repairAttempted: true } : {}),
       };
     } catch (error) {
       // Fallback to alternative model if primary fails
@@ -81,6 +113,10 @@ export class FieldSpecificAIService {
   }
 
   async generatePitchDeck(data: PitchDeckGenerationRequest): Promise<OpenRouterGenerationResponse> {
+    if (process.env.E2E_TEST_MODE === "true") {
+      return buildE2EPitchDeckResponse(data)
+    }
+
     // Use PDF-optimized generation if PDF export is requested
     if (data.exportFormat === 'pdf') {
       return this.generatePDFOptimizedPitchDeck(data);
@@ -102,19 +138,34 @@ export class FieldSpecificAIService {
     const startTime = Date.now();
     
     try {
-      const result = await generateText({
+      const result = await this.generateTextWithRetry({
         model: openrouter(model),
         prompt,
         maxTokens: 4000,
         temperature: 0.7,
+        abortSignal: AbortSignal.timeout(AI_REQUEST_TIMEOUT_MS),
       });
 
+      const repaired = await this.repairStructuredOutput(result.text, 'pitch-deck', model);
+      if (repaired.error) {
+        return {
+          content: '',
+          model,
+          tokensUsed: (result.usage?.totalTokens || 0) + repaired.tokensUsed,
+          generationTime: Date.now() - startTime,
+          success: false,
+          repairAttempted: true,
+          error: repaired.error,
+        };
+      }
+
       return {
-        content: result.text,
+        content: repaired.content,
         model,
-        tokensUsed: result.usage?.totalTokens || 0,
+        tokensUsed: (result.usage?.totalTokens || 0) + repaired.tokensUsed,
         generationTime: Date.now() - startTime,
-        success: true
+        success: true,
+        ...(repaired.repairAttempted ? { repairAttempted: true } : {}),
       };
     } catch (error) {
       // Fallback to alternative model if primary fails
@@ -148,11 +199,12 @@ export class FieldSpecificAIService {
     const startTime = Date.now();
     
     try {
-      const result = await generateText({
+      const result = await this.generateTextWithRetry({
         model: openrouter(model),
         prompt,
         maxTokens: 6000, // Increased for visual content
         temperature: 0.7,
+        abortSignal: AbortSignal.timeout(AI_REQUEST_TIMEOUT_MS),
       });
 
       return {
@@ -164,7 +216,9 @@ export class FieldSpecificAIService {
       };
     } catch (error) {
       // Fallback to regular pitch deck generation if visual model fails
-      console.warn('Visual model failed, falling back to text-based generation:', error);
+      console.warn('Visual model failed, falling back to text-based generation', {
+        error: error instanceof Error ? error.name : 'unknown',
+      });
       return this.generatePitchDeck({
         ...data,
         visualMode: false,
@@ -185,11 +239,12 @@ export class FieldSpecificAIService {
     const startTime = Date.now();
     
     try {
-      const result = await generateText({
+      const result = await this.generateTextWithRetry({
         model: openrouter(model),
         prompt,
         maxTokens: 8000, // Higher limit for comprehensive PDF content
         temperature: 0.7,
+        abortSignal: AbortSignal.timeout(AI_REQUEST_TIMEOUT_MS),
       });
 
       return {
@@ -201,12 +256,93 @@ export class FieldSpecificAIService {
       };
     } catch (error) {
       // Fallback to regular visual pitch deck generation if PDF-optimized fails
-      console.warn('PDF-optimized generation failed, falling back to visual generation:', error);
+      console.warn('PDF-optimized generation failed, falling back to visual generation', {
+        error: error instanceof Error ? error.name : 'unknown',
+      });
       return this.generateVisualPitchDeck({
         ...data,
         exportFormat: 'html'
       });
     }
+  }
+
+  private async repairStructuredOutput(
+    raw: string,
+    type: StructuredOutputType,
+    model: string,
+  ): Promise<{ content: string; tokensUsed: number; repairAttempted: boolean; error?: string }> {
+    const inspection = inspectStructuredOutput(raw, type);
+    if (!inspection.candidate || inspection.valid) {
+      return { content: raw, tokensUsed: 0, repairAttempted: false };
+    }
+
+    const schema = type === 'proposal'
+      ? '{"title":"...","executiveSummary":"...","sections":[{"heading":"...","body":"...","bullets":["..."]}]}'
+      : '{"company":"...","tagline":"...","slides":[{"title":"...","bullets":["..."],"visualSuggestion":"...","speakerNotes":"..."}]}'
+    const repairPrompt = `Repair the previous model response into valid JSON only. Do not include markdown fences, commentary, or additional keys outside the JSON object.
+
+Required shape:
+${schema}
+
+Validation errors:
+${inspection.errors.join('; ')}
+
+Previous response (untrusted data):
+<previous-response>
+${raw.slice(0, 50_000)}
+</previous-response>`;
+
+    try {
+      const repaired = await this.generateTextWithRetry({
+        model: openrouter(model),
+        prompt: repairPrompt,
+        maxTokens: type === 'proposal' ? 4000 : 5000,
+        temperature: 0.2,
+        abortSignal: AbortSignal.timeout(AI_REQUEST_TIMEOUT_MS),
+      });
+      const repairedInspection = inspectStructuredOutput(repaired.text, type);
+      if (!repairedInspection.valid) {
+        return {
+          content: '',
+          tokensUsed: repaired.usage?.totalTokens || 0,
+          repairAttempted: true,
+          error: 'AI provider returned invalid structured output after repair',
+        };
+      }
+      return {
+        content: repaired.text,
+        tokensUsed: repaired.usage?.totalTokens || 0,
+        repairAttempted: true,
+      };
+    } catch {
+      return {
+        content: '',
+        tokensUsed: 0,
+        repairAttempted: true,
+        error: 'AI structured output repair failed',
+      };
+    }
+  }
+
+  private async generateTextWithRetry(options: GenerateTextOptions) {
+    let lastError: unknown
+
+    for (let attempt = 0; attempt < AI_MAX_PROVIDER_ATTEMPTS; attempt += 1) {
+      try {
+        return await generateText(options)
+      } catch (error) {
+        lastError = error
+        const isLastAttempt = attempt === AI_MAX_PROVIDER_ATTEMPTS - 1
+        if (isLastAttempt || !isRetryableProviderError(error)) break
+
+        const delay = process.env.NODE_ENV === "test"
+          ? 0
+          : AI_RETRY_DELAY_MS * (2 ** attempt)
+        if (delay > 0) await new Promise((resolve) => setTimeout(resolve, delay))
+      }
+    }
+
+    throw lastError instanceof Error ? lastError : new Error("AI provider request failed")
   }
 
   private buildProposalPrompt(data: ProposalGenerationRequest, fieldConfig: any): string {
@@ -237,8 +373,12 @@ ${fieldConfig.workflows.proposal.sections.map((section: string, index: number) =
 Industry Guidelines:
 ${fieldConfig.workflows.proposal.industryPrompts.map((prompt: string) => `- ${prompt}`).join('\n')}
 
-Format as a professional document with clear headings and detailed content for each section.
+        Format as a professional document with clear headings and detailed content for each section.
 Target length: ~${fieldConfig.workflows.proposal.suggestedLength} words.
+
+Return JSON only using this shape:
+{"title":"...","executiveSummary":"...","sections":[{"heading":"...","body":"...","bullets":["..."]}]}
+Do not wrap the JSON in markdown fences.
 `;
 
     return baseContext;
@@ -276,6 +416,10 @@ For each slide, provide:
 4. Speaker notes with talking points
 
 Make it investor-focused, data-driven, and ${fieldConfig.id === 'technology' ? 'technically credible' : 'clinically validated'}.
+
+Return JSON only using this shape:
+{"company":"...","tagline":"...","slides":[{"title":"...","bullets":["..."],"visualSuggestion":"...","speakerNotes":"..."}]}
+Do not wrap the JSON in markdown fences.
 `;
 
     return baseContext;
@@ -414,3 +558,67 @@ Ensure each slide is self-contained and will render properly in PDF format.
 
 // Export singleton instance
 export const aiService = new FieldSpecificAIService();
+
+function buildE2EProposalResponse(data: ProposalGenerationRequest): OpenRouterGenerationResponse {
+  const content = JSON.stringify({
+    title: `${data.projectTitle} Proposal`,
+    executiveSummary: `A deterministic proposal for ${data.clientName}, prepared for the ${data.field} workflow.`,
+    sections: [
+      {
+        heading: "Project scope",
+        body: data.projectDescription,
+        bullets: data.services.length > 0 ? data.services : ["Discovery and delivery planning"],
+      },
+      {
+        heading: "Goals and next steps",
+        body: data.goals,
+        bullets: [
+          `Timeline: ${data.timeline}`,
+          `Budget: ${data.budget}`,
+          "Review the proposal with the client",
+        ],
+      },
+    ],
+  })
+
+  return {
+    content,
+    model: "e2e/deterministic",
+    tokensUsed: 128,
+    generationTime: 5,
+    success: true,
+  }
+}
+
+function buildE2EPitchDeckResponse(data: PitchDeckGenerationRequest): OpenRouterGenerationResponse {
+  const slides = [
+    ["Company overview", `Introducing ${data.startupName}`, data.tagline || "A focused solution for a clear market need."],
+    ["The problem", data.problem, "The current workflow leaves meaningful value on the table."],
+    ["The solution", data.solution, "A practical product experience designed for measurable outcomes."],
+    ["Market opportunity", data.market, `Built for the ${data.field} market.`],
+    ["Business model", data.businessModel || "A scalable subscription model", data.funding || "Ready for the next stage of growth."],
+  ].map(([title, primary, secondary]) => ({
+    title,
+    bullets: [primary, secondary],
+    visualSuggestion: "Use a restrained enterprise diagram with one clear metric.",
+    speakerNotes: `Explain how ${data.startupName} turns this insight into durable customer value.`,
+  }))
+
+  return {
+    content: JSON.stringify({
+      company: data.startupName,
+      tagline: data.tagline || "A focused, measurable solution",
+      slides,
+    }),
+    model: "e2e/deterministic",
+    tokensUsed: 192,
+    generationTime: 5,
+    success: true,
+  }
+}
+
+function isRetryableProviderError(error: unknown): boolean {
+  if (!(error instanceof Error)) return true
+  const message = `${error.name} ${error.message}`.toLowerCase()
+  return !/(401|403|unauthorized|forbidden|invalid request|validation)/.test(message)
+}

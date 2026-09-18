@@ -6,6 +6,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge"
 import { ArrowLeft, FileText, Zap, CheckCircle } from "lucide-react"
 import Link from "next/link"
+import { getUserSubscription } from "@/lib/subscription"
+import { STRIPE_PLANS } from "@/lib/stripe"
 
 export default async function GenerateProposalPage() {
   const session = await auth()
@@ -13,6 +15,9 @@ export default async function GenerateProposalPage() {
   if (!session) {
     redirect("/auth/signin")
   }
+
+  const subscription = await getUserSubscription(session.user.id)
+  const plan = STRIPE_PLANS[subscription?.plan || "FREE"] || STRIPE_PLANS.FREE
 
   return (
     <div className="min-h-screen bg-background">
@@ -35,7 +40,7 @@ export default async function GenerateProposalPage() {
               </div>
             </div>
             <Badge variant="secondary" className="hidden sm:flex">
-              Free Plan
+              {plan.name} Plan
             </Badge>
           </div>
         </div>

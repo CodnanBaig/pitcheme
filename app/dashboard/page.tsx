@@ -16,6 +16,9 @@ import {
 import Link from "next/link"
 import { prisma } from "@/lib/prisma"
 import { getUserSubscription, getUserUsage } from "@/lib/subscription"
+import { STRIPE_PLANS } from "@/lib/stripe"
+import { AuthButton } from "@/components/auth-button"
+import { MobileNav } from "@/components/mobile-nav"
 
 export default async function DashboardPage() {
   const session = await auth()
@@ -60,7 +63,7 @@ export default async function DashboardPage() {
     const stats = {
       totalDocuments,
       thisMonth: thisMonthDocuments,
-      successRate: 85, // This could be calculated based on actual usage patterns
+      generationsThisMonth: usage.proposals + usage.pitchDecks,
     }
 
     return (
@@ -73,13 +76,15 @@ export default async function DashboardPage() {
       />
     )
   } catch (error) {
-    console.error("Error loading dashboard:", error)
+    console.error("Error loading dashboard", {
+      error: error instanceof Error ? error.name : "unknown",
+    })
     // Return dashboard with empty data on error
     return (
       <DashboardContent
         session={session}
         recentDocuments={[]}
-        stats={{ totalDocuments: 0, thisMonth: 0, successRate: 0 }}
+        stats={{ totalDocuments: 0, thisMonth: 0, generationsThisMonth: 0 }}
         subscription={null}
         usage={{ proposals: 0, pitchDecks: 0 }}
       />
@@ -99,12 +104,14 @@ type DashboardDocument = {
 type DashboardContentProps = {
   session: any
   recentDocuments: DashboardDocument[]
-  stats: { totalDocuments: number; thisMonth: number; successRate: number }
+  stats: { totalDocuments: number; thisMonth: number; generationsThisMonth: number }
   subscription: { plan?: string } | null
   usage: { proposals: number; pitchDecks: number }
 }
 
 function DashboardContent({ session, recentDocuments, stats, subscription, usage }: DashboardContentProps) {
+  const plan = STRIPE_PLANS[(subscription?.plan as keyof typeof STRIPE_PLANS) || "FREE"] || STRIPE_PLANS.FREE
+
   return (
     <div className="min-h-screen bg-background">
       {/* Header */}
@@ -128,15 +135,18 @@ function DashboardContent({ session, recentDocuments, stats, subscription, usage
                 Settings
               </Link>
             </nav>
-            <div className="flex items-center gap-4">
+            <div className="flex items-center gap-2 sm:gap-4">
               <Badge variant="secondary" className="hidden sm:flex">
-                {subscription?.plan || "Free"} Plan
+                {plan.name} Plan
               </Badge>
-              <div className="w-8 h-8 bg-primary/10 rounded-full flex items-center justify-center">
-                <span className="text-sm font-semibold text-primary">
-                  {session.user?.name?.charAt(0) || session.user?.email?.charAt(0) || "U"}
-                </span>
-              </div>
+              <MobileNav
+                items={[
+                  { href: "/dashboard", label: "Dashboard" },
+                  { href: "/documents", label: "Documents" },
+                  { href: "/settings", label: "Settings" },
+                ]}
+              />
+              <AuthButton />
             </div>
           </div>
         </div>
@@ -219,28 +229,44 @@ function DashboardContent({ session, recentDocuments, stats, subscription, usage
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <TrendingUp className="w-4 h-4 text-muted-foreground" />
-                    <span className="text-sm text-muted-foreground">Success Rate</span>
+                    <span className="text-sm text-muted-foreground">Generations This Month</span>
                   </div>
-                  <span className="font-semibold text-primary">{stats.successRate}%</span>
+                  <span className="font-semibold text-primary">{stats.generationsThisMonth}</span>
                 </div>
               </CardContent>
             </Card>
 
-            {/* Upgrade Card */}
-            <Card className="border-primary/20 bg-primary/5">
-              <CardHeader className="pb-4">
-                <CardTitle className="text-lg flex items-center gap-2">
-                  <Zap className="w-5 h-5 text-primary" />
-                  Upgrade to Pro
-                </CardTitle>
-                <CardDescription>Unlock unlimited documents and premium features</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <Button asChild className="w-full bg-primary hover:bg-primary/90">
-                  <Link href="/pricing">Upgrade Now</Link>
-                </Button>
-              </CardContent>
-            </Card>
+            {plan.name === "Free" ? (
+              <Card className="border-primary/20 bg-primary/5">
+                <CardHeader className="pb-4">
+                  <CardTitle className="text-lg flex items-center gap-2">
+                    <Zap className="w-5 h-5 text-primary" />
+                    Upgrade to Pro
+                  </CardTitle>
+                  <CardDescription>Unlock unlimited documents and premium features</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <Button asChild className="w-full bg-primary hover:bg-primary/90">
+                    <Link href="/pricing">Upgrade Now</Link>
+                  </Button>
+                </CardContent>
+              </Card>
+            ) : (
+              <Card className="border-primary/20 bg-primary/5">
+                <CardHeader className="pb-4">
+                  <CardTitle className="text-lg flex items-center gap-2">
+                    <Zap className="w-5 h-5 text-primary" />
+                    {plan.name} workspace
+                  </CardTitle>
+                  <CardDescription>Your current plan is reflected in usage limits and account settings.</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <Button asChild variant="outline" className="w-full">
+                    <Link href="/billing">View billing & usage</Link>
+                  </Button>
+                </CardContent>
+              </Card>
+            )}
           </div>
 
           {/* Recent Documents */}
@@ -283,11 +309,15 @@ function DashboardContent({ session, recentDocuments, stats, subscription, usage
                           </div>
                         </div>
                         <div className="flex items-center gap-2">
-                          <Button variant="ghost" size="sm">
-                            <Eye className="w-4 h-4" />
+                          <Button variant="ghost" size="sm" asChild>
+                            <Link href={doc.type === "proposal" ? `/proposal/${doc.id}` : `/pitch-deck/${doc.id}`} aria-label="View document">
+                              <Eye className="w-4 h-4" />
+                            </Link>
                           </Button>
-                          <Button variant="ghost" size="sm">
-                            <Download className="w-4 h-4" />
+                          <Button variant="ghost" size="sm" asChild>
+                            <a href={`/api/export/${doc.type === "proposal" ? "proposal" : "pitch-deck"}/${doc.id}?format=pdf`} aria-label="Download document">
+                              <Download className="w-4 h-4" />
+                            </a>
                           </Button>
                         </div>
                       </div>

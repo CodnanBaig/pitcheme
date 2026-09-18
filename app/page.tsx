@@ -4,6 +4,7 @@ import { Badge } from "@/components/ui/badge"
 import { CheckCircle, Zap, FileText, PresentationIcon as PresentationChart, Clock, Star } from "lucide-react"
 import { AuthButton } from "@/components/auth-button"
 import { SmartCTAButton } from "@/components/smart-cta-button"
+import { MobileNav } from "@/components/mobile-nav"
 import Link from "next/link"
 
 export default function LandingPage() {
@@ -27,10 +28,23 @@ export default function LandingPage() {
                 Pricing
               </Link>
               <Link href="#testimonials" className="text-muted-foreground hover:text-foreground transition-colors">
-                Testimonials
+                Workflow
+              </Link>
+              <Link href="/brand-lab" className="text-muted-foreground hover:text-foreground transition-colors">
+                Visual directions
               </Link>
             </nav>
-            <AuthButton />
+            <div className="flex items-center gap-2">
+              <MobileNav
+                items={[
+                  { href: "#features", label: "Features" },
+                  { href: "#pricing", label: "Pricing" },
+                  { href: "#testimonials", label: "Workflow" },
+                  { href: "/brand-lab", label: "Visual directions" },
+                ]}
+              />
+              <AuthButton />
+            </div>
           </div>
         </div>
       </header>
@@ -57,8 +71,8 @@ export default function LandingPage() {
               >
                 Start Creating Free
               </SmartCTAButton>
-              <Button variant="outline" size="lg" className="px-8 py-3 bg-transparent">
-                Watch Demo
+              <Button variant="outline" size="lg" className="px-8 py-3 bg-transparent" asChild>
+                <Link href="#features">Explore the workflow</Link>
               </Button>
             </div>
             <div className="flex items-center justify-center gap-8 text-sm text-muted-foreground">
@@ -193,8 +207,8 @@ export default function LandingPage() {
                   <CheckCircle className="w-5 h-5 text-primary" />
                   <span>Basic templates</span>
                 </div>
-                <Button className="w-full mt-8 bg-transparent" variant="outline">
-                  Get Started Free
+                <Button className="w-full mt-8 bg-transparent" variant="outline" asChild>
+                  <Link href="/auth/signup">Get Started Free</Link>
                 </Button>
               </CardContent>
             </Card>
@@ -269,80 +283,50 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* Testimonials Section */}
+      {/* Workflow outcomes section */}
       <section id="testimonials" className="py-20 bg-secondary/30">
         <div className="container mx-auto px-4 sm:px-6 lg:px-8">
           <div className="max-w-3xl mx-auto text-center mb-16">
             <h2 className="text-3xl lg:text-4xl font-bold text-foreground mb-4">
-              Trusted by thousands of professionals
+              Built for repeatable delivery
             </h2>
-            <p className="text-lg text-muted-foreground">See what our users are saying about PitchGenie</p>
+            <p className="text-lg text-muted-foreground">A clear workflow for turning rough context into credible business output.</p>
           </div>
           <div className="grid md:grid-cols-3 gap-8">
             <Card className="border-border bg-card">
               <CardContent className="pt-6">
-                <div className="flex items-center gap-1 mb-4">
-                  {[...Array(5)].map((_, i) => (
-                    <Star key={i} className="w-4 h-4 fill-accent text-accent" />
-                  ))}
+                <div className="flex items-center gap-2 mb-4 text-primary">
+                  <FileText className="w-5 h-5" />
+                  <span className="text-xs font-semibold uppercase tracking-wider">Proposal workflow</span>
                 </div>
                 <p className="text-muted-foreground mb-4">
-                  "PitchGenie saved me 10+ hours per proposal. The AI understands my business and creates exactly what I
-                  need."
+                  Move from an unstructured brief to a structured proposal without starting from a blank page.
                 </p>
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 bg-primary/10 rounded-full flex items-center justify-center">
-                    <span className="text-sm font-semibold text-primary">SJ</span>
-                  </div>
-                  <div>
-                    <div className="font-semibold text-foreground">Sarah Johnson</div>
-                    <div className="text-sm text-muted-foreground">Freelance Consultant</div>
-                  </div>
-                </div>
+                <div className="text-sm font-medium text-foreground">Brief → draft → refine</div>
               </CardContent>
             </Card>
             <Card className="border-border bg-card">
               <CardContent className="pt-6">
-                <div className="flex items-center gap-1 mb-4">
-                  {[...Array(5)].map((_, i) => (
-                    <Star key={i} className="w-4 h-4 fill-accent text-accent" />
-                  ))}
+                <div className="flex items-center gap-2 mb-4 text-primary">
+                  <PresentationChart className="w-5 h-5" />
+                  <span className="text-xs font-semibold uppercase tracking-wider">Pitch deck workflow</span>
                 </div>
                 <p className="text-muted-foreground mb-4">
-                  "Our pitch deck helped us secure $2M in funding. The AI created a compelling story that investors
-                  loved."
+                  Keep problem, solution, market, and funding context in one editable investor narrative.
                 </p>
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 bg-primary/10 rounded-full flex items-center justify-center">
-                    <span className="text-sm font-semibold text-primary">MR</span>
-                  </div>
-                  <div>
-                    <div className="font-semibold text-foreground">Mike Rodriguez</div>
-                    <div className="text-sm text-muted-foreground">Startup Founder</div>
-                  </div>
-                </div>
+                <div className="text-sm font-medium text-foreground">Story → structure → presentation</div>
               </CardContent>
             </Card>
             <Card className="border-border bg-card">
               <CardContent className="pt-6">
-                <div className="flex items-center gap-1 mb-4">
-                  {[...Array(5)].map((_, i) => (
-                    <Star key={i} className="w-4 h-4 fill-accent text-accent" />
-                  ))}
+                <div className="flex items-center gap-2 mb-4 text-primary">
+                  <CheckCircle className="w-5 h-5" />
+                  <span className="text-xs font-semibold uppercase tracking-wider">Workspace workflow</span>
                 </div>
                 <p className="text-muted-foreground mb-4">
-                  "Game changer for my agency. We can now respond to RFPs in hours instead of days. Win rate increased
-                  40%."
+                  Search, edit, version, duplicate, and export from one calm, ownership-scoped workspace.
                 </p>
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 bg-primary/10 rounded-full flex items-center justify-center">
-                    <span className="text-sm font-semibold text-primary">AL</span>
-                  </div>
-                  <div>
-                    <div className="font-semibold text-foreground">Alex Liu</div>
-                    <div className="text-sm text-muted-foreground">Agency Owner</div>
-                  </div>
-                </div>
+                <div className="text-sm font-medium text-foreground">Manage → review → export</div>
               </CardContent>
             </Card>
           </div>
@@ -355,8 +339,7 @@ export default function LandingPage() {
           <div className="max-w-4xl mx-auto text-center">
             <h2 className="text-3xl lg:text-4xl font-bold text-foreground mb-4">Ready to win more business?</h2>
             <p className="text-lg text-muted-foreground mb-8">
-              Join thousands of professionals who are already using PitchGenie to create winning proposals and pitch
-              decks.
+              Bring your next brief into a repeatable workflow for proposals and pitch decks.
             </p>
             <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
               <SmartCTAButton 
@@ -365,8 +348,8 @@ export default function LandingPage() {
               >
                 Start Creating Free
               </SmartCTAButton>
-              <Button variant="outline" size="lg" className="px-8 py-3 bg-transparent">
-                Schedule Demo
+              <Button variant="outline" size="lg" className="px-8 py-3 bg-transparent" asChild>
+                <Link href="/brand-lab/enterprise">View enterprise direction</Link>
               </Button>
             </div>
           </div>
