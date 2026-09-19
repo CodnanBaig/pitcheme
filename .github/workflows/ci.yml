@@ -3,6 +3,7 @@ name: CI
 on:
   push:
     branches: [main, develop]
+    tags: ["v*.*.*"]
   pull_request:
     branches: [main, develop]
 
@@ -16,19 +17,22 @@ concurrency:
 jobs:
   quality:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     services:
       mongodb:
         image: mongo:7
         ports:
           - 27017:27017
         options: >-
-          --health-cmd "mongosh --quiet --eval 'db.adminCommand({ ping: 1 }).ok'"
+          --replSet rs0
+          --bind_ip_all
+          --health-cmd "mongosh --quiet --eval 'try { if (rs.status().ok === 1) quit(0) } catch (error) { rs.initiate({ _id: \"rs0\", members: [{ _id: 0, host: \"127.0.0.1:27017\" }] }); quit(0) }'"
           --health-interval 10s
           --health-timeout 5s
           --health-retries 12
     env:
-      DATABASE_URL: mongodb://127.0.0.1:27017/pitchgenie-ci
-      E2E_DATABASE_URL: mongodb://127.0.0.1:27017/pitchgenie-e2e
+      DATABASE_URL: mongodb://127.0.0.1:27017/pitchgenie-ci?replicaSet=rs0
+      E2E_DATABASE_URL: mongodb://127.0.0.1:27017/pitchgenie-e2e?replicaSet=rs0
       NEXTAUTH_URL: https://ci.example.com
       NEXTAUTH_SECRET: ci-only-secret-that-is-long-enough-for-tests
       OPENROUTER_API_KEY: ci-only-placeholder-key
@@ -40,6 +44,8 @@ jobs:
       HEALTHCHECK_EXTERNAL_SERVICES: "false"
       HEALTHCHECK_EXPORT_RUNTIME: "true"
       HEALTHCHECK_DATABASE_INDEXES: "true"
+      BRAND_LAB_ENABLED: "false"
+      APP_VERSION: ci-${{ github.sha }}
       BUILD_SHA: ${{ github.sha }}
       RATE_LIMIT_STORE: mongodb
 
@@ -49,8 +55,6 @@ jobs:
 
       - name: Set up pnpm
         uses: pnpm/action-setup@v4
-        with:
-          version: 10.12.1
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
@@ -70,6 +74,12 @@ jobs:
       - name: Validate MongoDB schema
         run: pnpm db:deploy
 
+      - name: Validate document history migration is safe
+        run: pnpm db:migrate:versions
+
+      - name: Validate expired-record maintenance
+        run: pnpm db:prune:expired
+
       - name: Prepare isolated E2E MongoDB schema
         run: pnpm db:deploy
         env:
@@ -78,14 +88,84 @@ jobs:
       - name: Lint
         run: pnpm lint
 
+      - name: Audit production surface
+        run: pnpm quality:surface
+
+      - name: Audit operational telemetry coverage
+        run: pnpm quality:telemetry
+
+      - name: Audit runtime imports
+        run: pnpm quality:imports
+
+      - name: Scan deployable code for secrets
+        run: pnpm quality:secrets
+
       - name: Typecheck
         run: pnpm typecheck
 
       - name: Test with coverage
         run: pnpm test:ci
 
+      - name: Deterministic AI evaluation
+        run: pnpm eval:ai
+
       - name: Build
         run: pnpm build
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build production container
+        run: docker buildx build --load --build-arg APP_VERSION="ci-${GITHUB_SHA}" --build-arg BUILD_SHA="${GITHUB_SHA}" --tag pitchgenie:ci .
+
+      - name: Smoke test production container
+        run: |
+          container_name=pitchgenie-ci-container
+          docker rm --force "$container_name" >/dev/null 2>&1 || true
+          docker run --detach --name "$container_name" --publish 3201:3000 \
+            --add-host host.docker.internal:host-gateway \
+            --env DATABASE_URL=mongodb://host.docker.internal:27017/pitchgenie-ci?replicaSet=rs0\&directConnection=true \
+            --env NEXTAUTH_URL=https://ci.example.com \
+            --env NEXTAUTH_SECRET=ci-only-secret-that-is-long-enough-for-tests \
+            --env OPENROUTER_API_KEY=ci-only-placeholder-key \
+            --env HEALTHCHECK_EXTERNAL_SERVICES=false \
+            --env HEALTHCHECK_EXPORT_RUNTIME=true \
+            --env HEALTHCHECK_DATABASE_INDEXES=true \
+            --env CHROMIUM_EXECUTABLE_PATH=/usr/bin/chromium \
+            --env BRAND_LAB_ENABLED=false \
+            --env RATE_LIMIT_STORE=mongodb \
+            --env STRIPE_BILLING_ENABLED=false \
+            pitchgenie:ci >/dev/null
+          trap 'docker rm --force "$container_name"' EXIT
+
+          for _ in $(seq 1 30); do
+            if curl --fail --silent http://127.0.0.1:3201/api/health/live > /dev/null; then
+              break
+            fi
+            sleep 1
+          done
+
+          curl --fail --silent http://127.0.0.1:3201/api/health/live > /dev/null
+
+          for _ in $(seq 1 45); do
+            if curl --fail --silent http://127.0.0.1:3201/api/health/ready > /dev/null; then
+              break
+            fi
+            sleep 1
+          done
+
+          ready_body=$(curl --fail --silent http://127.0.0.1:3201/api/health/ready)
+          printf '%s' "$ready_body" | grep --fixed-strings "\"commit\":\"${GITHUB_SHA}\"" > /dev/null
+          VERIFY_BASE_URL=http://127.0.0.1:3201 EXPECTED_BUILD_SHA="${GITHUB_SHA}" VERIFY_BRAND_LAB_DISABLED=true pnpm verify:deployment
+
+          for _ in $(seq 1 45); do
+            if [ "$(docker inspect "$container_name" --format '{{.State.Health.Status}}')" = "healthy" ]; then
+              break
+            fi
+            sleep 1
+          done
+
+          test "$(docker inspect "$container_name" --format '{{.State.Health.Status}}')" = "healthy"
 
       - name: Install Playwright Chromium
         run: pnpm exec playwright install --with-deps chromium
@@ -99,7 +179,7 @@ jobs:
           server_pid=$!
           trap 'kill "$server_pid"' EXIT
 
-          for attempt in $(seq 1 30); do
+          for _ in $(seq 1 30); do
             if curl --fail --silent http://127.0.0.1:3100/api/health/live > /dev/null; then
               break
             fi
@@ -109,6 +189,7 @@ jobs:
           curl --fail --silent http://127.0.0.1:3100/api/health/live > /dev/null
           curl --fail --silent http://127.0.0.1:3100/api/health/ready > /dev/null
           curl --fail --silent http://127.0.0.1:3100/pricing > /dev/null
+          VERIFY_BASE_URL=http://127.0.0.1:3100 EXPECTED_BUILD_SHA="${GITHUB_SHA}" VERIFY_BRAND_LAB_DISABLED=true pnpm verify:deployment
 
       - name: Run Chromium smoke tests
         run: pnpm test:e2e
@@ -122,3 +203,55 @@ jobs:
             playwright-report/
             test-results/
           if-no-files-found: ignore
+
+  publish:
+    if: startsWith(github.ref, 'refs/tags/v') && needs.quality.result == 'success'
+    needs: quality
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      packages: write
+
+    env:
+      REGISTRY: ghcr.io
+      IMAGE_NAME: ${{ github.repository }}
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract image metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=raw,value=latest
+
+      - name: Build and publish production image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            APP_VERSION=${{ steps.meta.outputs.version }}
+            BUILD_SHA=${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          provenance: true
+          sbom: true
