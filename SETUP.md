@@ -5,14 +5,20 @@
 Copy `.env.example` to `.env.local` and replace the placeholders. The Prisma
 schema uses MongoDB in local, preview, and production environments.
 
+Docker is not required when `DATABASE_URL` points to a reachable MongoDB Atlas
+cluster. Use a database name in the URI (for example, `pitchgenie-e2e` for an
+isolated browser rehearsal); Docker is only needed for the disposable local
+replica set and the CI/reproducible production-container paths.
+
 ### Required Variables
 
 ```bash
 # Database Configuration
-DATABASE_URL="mongodb://127.0.0.1:27017/pitchgenie"
+DATABASE_URL="mongodb://127.0.0.1:27017/pitchgenie?replicaSet=rs0"
 
 # NextAuth Configuration
 NEXTAUTH_SECRET=replace-with-a-long-random-secret
+# Absolute http(s) URL; production deployments must use https://
 NEXTAUTH_URL=http://localhost:3000
 
 # AI generation (required for generation routes)
@@ -21,14 +27,24 @@ OPENROUTER_API_KEY=your-openrouter-key
 # Optional blended paid-model rate in USD per million tokens
 AI_COST_PER_MILLION_TOKENS=
 
-# Optional release identifier shown by readiness checks
+# Local release identifier shown by readiness checks; production must provide
+# the immutable release value used to build the deployment.
 APP_VERSION=0.1.0
+# Production commit when the platform does not provide GIT_COMMIT_SHA or
+# VERCEL_GIT_COMMIT_SHA automatically.
+BUILD_SHA=
 
 # Optional live provider probes (keep false for local/CI)
 HEALTHCHECK_EXTERNAL_SERVICES=false
 
+# Optional provider model-catalog check (requires external probes)
+HEALTHCHECK_MODEL_CATALOG=false
+
 # Optional export-runtime probe; set true in production to require Chromium
 HEALTHCHECK_EXPORT_RUNTIME=false
+
+# Optional MongoDB index probe; set true before production traffic
+HEALTHCHECK_DATABASE_INDEXES=false
 
 # Shared rate-limit store: mongodb enables distributed rate limits and atomic
 # monthly usage reservations. Use process only for local-only development.
@@ -36,6 +52,14 @@ RATE_LIMIT_STORE=process
 
 # Optional deployment-provided Chromium path for PDF exports
 CHROMIUM_EXECUTABLE_PATH=
+# Legacy compatibility alias; prefer CHROMIUM_EXECUTABLE_PATH for new deployments
+PUPPETEER_EXECUTABLE_PATH=
+
+# Optional bounded error-monitoring webhook for preview/production
+ERROR_MONITORING_WEBHOOK_URL=
+
+# Optional internal visual-direction comparison (keep disabled in production)
+BRAND_LAB_ENABLED=false
 
 # Email magic links (optional; credentials auth works without SMTP)
 EMAIL_SERVER_HOST=smtp.gmail.com
@@ -44,6 +68,11 @@ EMAIL_SERVER_USER=your-gmail@gmail.com
 EMAIL_SERVER_PASSWORD=your-app-password-or-password
 EMAIL_FROM=noreply@example.com
 ```
+
+Production runtime validation requires `RATE_LIMIT_STORE=mongodb`,
+`HEALTHCHECK_EXPORT_RUNTIME=true`, and `HEALTHCHECK_DATABASE_INDEXES=true`;
+the process-local value and disabled probes above are for local development
+only.
 
 ### Optional Variables (for additional features)
 
@@ -59,9 +88,12 @@ STRIPE_WEBHOOK_SECRET=whsec_your-webhook-secret
 
 ## Quick Start
 
+Use Node.js 20 or newer and pnpm 10.12.1 (the version pinned by the
+repository's package-manager contract).
+
 1. **Install dependencies:**
    ```bash
-   pnpm install
+   pnpm install --frozen-lockfile
    ```
 
 2. **Set up the database:**
@@ -69,8 +101,8 @@ STRIPE_WEBHOOK_SECRET=whsec_your-webhook-secret
 # Generate the Prisma client
    pnpm db:generate
 
-   # Synchronize the MongoDB schema
-   pnpm db:push
+   # Synchronize the MongoDB schema and required indexes
+   pnpm db:deploy
    ```
 
 3. **Generate a secure secret:**
@@ -84,31 +116,41 @@ STRIPE_WEBHOOK_SECRET=whsec_your-webhook-secret
    pnpm dev
    ```
 
+5. **Smoke-test the real AI provider before promotion:**
+   ```bash
+   pnpm smoke:provider
+   ```
+   This opt-in command uses the configured OpenRouter credential, validates all
+   configured model roles against the live catalog, and performs one minimal
+   primary-model generation. Run `pnpm smoke:provider -- --all-models` after a
+   model change to exercise each unique configured model. It is intentionally
+   excluded from ordinary CI because it requires a real secret and makes live
+   provider calls.
+
 ## Database Setup
 
 This project uses MongoDB through Prisma. A local MongoDB server is convenient
 for development; a hosted MongoDB cluster is recommended for preview and
-production. `prisma db push` synchronizes the schema because Prisma migrations
-are not used for this MongoDB datasource.
+production. Prisma migrations are not used for this MongoDB datasource. The
+database must run as a replica set because application writes use transactions;
+`pnpm db:deploy` synchronizes the schema and idempotently bootstraps required
+indexes.
 
 ### Database Management
 ```bash
 # View your database in a browser
 pnpm db:studio
 
-# Synchronize the MongoDB schema
+# Synchronize the MongoDB schema and required indexes
 pnpm db:deploy
 ```
 
-## Google OAuth Setup (Optional)
+## Authentication Providers
 
-1. Go to [Google Cloud Console](https://console.cloud.google.com/)
-2. Create a new project
-3. Enable Google+ API
-4. Create OAuth 2.0 credentials
-5. Add authorized redirect URIs:
-   - `http://localhost:3000/api/auth/callback/google` (development)
-   - `https://yourdomain.com/api/auth/callback/google` (production)
+Credentials email/password authentication is always available. Email magic
+links are enabled only when all SMTP variables are configured. Google OAuth is
+not enabled in the current provider list, so do not add Google callback URLs
+unless the provider is deliberately implemented and tested.
 
 ## Email Authentication Setup
 
@@ -165,7 +207,7 @@ verified end to end. When that work is enabled:
 
 3. **Prisma client issues**
    - Run `pnpm db:generate` to regenerate the client
-   - Run `pnpm db:push` to sync the MongoDB schema
+   - Run `pnpm db:deploy` to sync the MongoDB schema and required indexes
 
 4. **Authentication errors**
    - Verify `NEXTAUTH_SECRET` is set
@@ -179,11 +221,11 @@ verified end to end. When that work is enabled:
 
 ```bash
 # Install dependencies
-pnpm install
+pnpm install --frozen-lockfile
 
 # Set up database
 pnpm db:generate
-pnpm db:push
+pnpm db:deploy
 
 # Run development server
 pnpm dev
@@ -191,8 +233,7 @@ pnpm dev
 # Database management
 pnpm db:studio    # Open Prisma Studio (database browser)
 pnpm db:generate  # Regenerate Prisma client
-pnpm db:push      # Push schema changes to database
-pnpm db:deploy    # Alias for MongoDB schema synchronization
+pnpm db:deploy    # Schema synchronization plus required index bootstrap
 
 # Build for production
 pnpm build
@@ -203,10 +244,24 @@ pnpm start
 # Run linting
 pnpm lint
 
+# Check the production surface for placeholder destinations and dead controls
+pnpm quality:imports
+pnpm quality:secrets
+pnpm quality:surface
+pnpm quality:telemetry
+
+# Verify a hosted deployment's health, public pages, 404 surface, provenance,
+# and customer-facing enterprise-surface route gate
+VERIFY_BASE_URL=https://your-domain.example \
+VERIFY_BRAND_LAB_DISABLED=true \
+pnpm verify:deployment
+
 # Run the Chromium production smoke suite (the local harness synchronizes its
 # MongoDB schema/indexes before starting the built server). Point
 # E2E_DATABASE_URL at an isolated database; existing test data is not reset.
 # The suite starts the current build unless E2E_REUSE_SERVER=true is explicit.
+# Playwright sets E2E_TEST_MODE only for its local deterministic fixture server;
+# never carry that flag into preview or production.
 pnpm exec playwright install chromium
 pnpm test:e2e
 ```
@@ -229,11 +284,12 @@ pitchgenie/
 
 After setting up the environment variables:
 
-1. Set up the database: `pnpm db:push`
-2. Start the development server: `pnpm dev`
-3. Open [http://localhost:3000](http://localhost:3000)
-4. Sign up or sign in to test authentication
-5. Try generating a pitch deck or proposal
+1. Set up the database: `pnpm db:deploy`
+2. Review expired-record cleanup and 180-day telemetry retention: `pnpm db:prune:expired`
+3. Start the development server: `pnpm dev`
+4. Open [http://localhost:3000](http://localhost:3000)
+5. Sign up or sign in to test authentication
+6. Try generating a pitch deck or proposal
 
 ## Support
 
