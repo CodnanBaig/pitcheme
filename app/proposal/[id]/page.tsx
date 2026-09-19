@@ -4,10 +4,13 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { ExportButton } from "@/components/export-button"
+import { ShareButton } from "@/components/share-button"
 import { ArrowLeft, Edit, FileText, Zap } from "lucide-react"
 import Link from "next/link"
 import { prisma } from "@/lib/prisma"
 import { isMongoObjectId } from "@/lib/mongo-id"
+
+export const runtime = "nodejs"
 
 interface ProposalPageProps {
   params: Promise<{
@@ -76,6 +79,7 @@ export default async function ProposalPage({ params }: ProposalPageProps) {
               </div>
             </div>
             <div className="flex items-center gap-2">
+              <ShareButton documentId={proposal.id} />
               <Button variant="outline" size="sm" asChild>
                 <Link href={`/documents/${proposal.id}/edit`}>
                   <Edit className="w-4 h-4 mr-2" />
@@ -172,7 +176,8 @@ export default async function ProposalPage({ params }: ProposalPageProps) {
           </Card>
 
           {/* Action Buttons */}
-          <div className="flex justify-center gap-4 mt-8">
+          <div className="flex flex-wrap justify-center gap-4 mt-8">
+            <ShareButton documentId={proposal.id} size="lg" allowRevoke />
             <Button variant="outline" size="lg" asChild>
               <Link href={`/documents/${proposal.id}/edit`}>
                 <Edit className="w-4 h-4 mr-2" />

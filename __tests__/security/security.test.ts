@@ -64,6 +64,7 @@ describe("security controls", () => {
       nextAuthUrl: process.env.NEXTAUTH_URL,
       nextAuthSecret: process.env.NEXTAUTH_SECRET,
       openRouterKey: process.env.OPENROUTER_API_KEY,
+      rateLimitStore: process.env.RATE_LIMIT_STORE,
     }
 
     try {
@@ -88,6 +89,8 @@ describe("security controls", () => {
       process.env.NEXTAUTH_URL = original.nextAuthUrl
       process.env.NEXTAUTH_SECRET = original.nextAuthSecret
       process.env.OPENROUTER_API_KEY = original.openRouterKey
+      if (original.rateLimitStore === undefined) delete process.env.RATE_LIMIT_STORE
+      else process.env.RATE_LIMIT_STORE = original.rateLimitStore
     }
   })
 

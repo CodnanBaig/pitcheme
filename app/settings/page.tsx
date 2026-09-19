@@ -13,6 +13,8 @@ import { STRIPE_PLANS } from "@/lib/stripe"
 import { AuthButton } from "@/components/auth-button"
 import { MobileNav } from "@/components/mobile-nav"
 
+export const runtime = "nodejs"
+
 export default async function SettingsPage() {
   const session = await auth()
 

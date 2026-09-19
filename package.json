@@ -2,11 +2,20 @@
   "name": "pitchgenie",
   "version": "0.1.0",
   "private": true,
+  "description": "Enterprise-style AI proposal and pitch-deck workspace with validated generation, document history, and production health checks.",
+  "engines": {
+    "node": ">=20.0.0"
+  },
   "scripts": {
     "dev": "next dev",
+    "prebuild": "prisma generate",
     "build": "next build",
     "start": "next start",
     "lint": "eslint .",
+    "quality:imports": "node scripts/check-runtime-imports.mjs",
+    "quality:secrets": "node scripts/check-runtime-secrets.mjs",
+    "quality:surface": "node scripts/check-production-surface.mjs",
+    "quality:telemetry": "node scripts/check-operational-telemetry.mjs",
     "typecheck": "tsc --noEmit",
     "test": "jest",
     "test:ci": "jest --runInBand --coverage",
@@ -19,9 +28,13 @@
     "test:e2e": "playwright test",
     "test:performance": "jest __tests__/performance",
     "eval:ai": "jest __tests__/evals --runInBand",
+    "smoke:provider": "node scripts/smoke-openrouter.mjs",
     "db:generate": "prisma generate",
     "db:push": "prisma db push",
-    "db:deploy": "prisma db push",
+    "db:deploy": "prisma db push && node scripts/ensure-mongodb-indexes.mjs",
+    "db:migrate:versions": "node scripts/migrate-document-versions.mjs",
+    "db:prune:expired": "node scripts/prune-expired-records.mjs",
+    "verify:deployment": "node scripts/verify-deployment.mjs",
     "db:studio": "prisma studio"
   },
   "dependencies": {

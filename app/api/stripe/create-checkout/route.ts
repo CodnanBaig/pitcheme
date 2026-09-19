@@ -12,6 +12,13 @@ import {
 import { getUserSubscription } from "@/lib/subscription"
 import { enforceRateLimit } from "@/lib/rate-limit"
 import { getRequestId, jsonWithRequestId } from "@/lib/request-id"
+import { readJsonBody } from "@/lib/request-body"
+import { sendOperationalErrorTelemetry } from "@/lib/error-monitoring"
+
+const MAX_REQUEST_BYTES = 4 * 1024
+
+export const runtime = "nodejs"
+export const maxDuration = 30
 
 function json(
   requestId: string,
@@ -48,12 +55,15 @@ export async function POST(request: NextRequest) {
       return json(requestId, { error: "Stripe is not configured", requestId }, 503)
     }
 
-    let body: unknown
-    try {
-      body = await request.json()
-    } catch {
-      return json(requestId, { error: "Invalid JSON request body", requestId }, 400)
+    const parsedBody = await readJsonBody(request, MAX_REQUEST_BYTES)
+    if (!parsedBody.ok) {
+      return json(
+        requestId,
+        { error: parsedBody.reason === "too-large" ? "Request body is too large" : "Invalid JSON request body", requestId },
+        parsedBody.reason === "too-large" ? 413 : 400,
+      )
     }
+    const body = parsedBody.body
 
     if (!body || typeof body !== "object" || Array.isArray(body)) {
       return json(requestId, { error: "Invalid request body", requestId }, 400)
@@ -129,6 +139,14 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     console.error("Stripe checkout error", {
       requestId,
+      error: error instanceof Error ? error.name : "unknown",
+    })
+    void sendOperationalErrorTelemetry({
+      event: "stripe_failed",
+      requestId,
+      path: "/api/stripe/create-checkout",
+      method: "POST",
+      category: "checkout",
       error: error instanceof Error ? error.name : "unknown",
     })
     return json(requestId, { error: "Unable to create checkout session", requestId }, 502)

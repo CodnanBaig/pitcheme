@@ -2,6 +2,8 @@ import type { Metadata } from "next"
 import { notFound } from "next/navigation"
 import { BrandOptionPage, brandOptions, getBrandOption } from "@/components/brand-lab/brand-option-page"
 
+export const dynamic = "force-dynamic"
+
 interface BrandOptionRouteProps {
   params: Promise<{ option: string }>
 }
@@ -21,6 +23,10 @@ export async function generateMetadata({ params }: BrandOptionRouteProps): Promi
 }
 
 export default async function BrandOptionRoute({ params }: BrandOptionRouteProps) {
+  if (process.env.NODE_ENV === "production" && process.env.BRAND_LAB_ENABLED !== "true") {
+    notFound()
+  }
+
   const { option: slug } = await params
   const option = getBrandOption(slug)
 

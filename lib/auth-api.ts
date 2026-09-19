@@ -1,4 +1,8 @@
 import { getSession } from "next-auth/react"
+import { readBoundedJsonResponse } from "@/lib/bounded-json"
+
+const MAX_AUTH_ERROR_RESPONSE_BYTES = 64 * 1024
+const MAX_AUTH_JSON_RESPONSE_BYTES = 2 * 1024 * 1024
 
 export class AuthApiError extends Error {
   constructor(message: string, public status: number) {
@@ -33,8 +37,6 @@ export async function authenticatedFetch(
 
     // If we get a 401, try to refresh the session
     if (response.status === 401) {
-      console.log("Received 401, attempting to refresh session")
-
       // Try to refresh the session
       const refreshResponse = await fetch("/api/auth/session", {
         method: "GET",
@@ -60,7 +62,7 @@ export async function authenticatedFetch(
     if (!response.ok) {
       let message = `Request failed: ${response.statusText || response.status}`
       try {
-        const payload = await response.json() as { error?: unknown; fields?: unknown }
+        const payload = await readBoundedJsonResponse(response, MAX_AUTH_ERROR_RESPONSE_BYTES) as { error?: unknown; fields?: unknown }
         const fieldError = Array.isArray(payload.fields) && typeof payload.fields[0] === "string"
           ? payload.fields[0]
           : undefined
@@ -78,7 +80,6 @@ export async function authenticatedFetch(
       throw error
     }
 
-    console.error("Network error:", error)
     throw new AuthApiError("Network error occurred", 500)
   }
 }
@@ -88,5 +89,5 @@ export async function authenticatedJsonFetch<T = Record<string, unknown>>(
   options: RequestInit = {}
 ): Promise<T> {
   const response = await authenticatedFetch(url, options)
-  return response.json()
+  return await readBoundedJsonResponse(response, MAX_AUTH_JSON_RESPONSE_BYTES) as T
 }

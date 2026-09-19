@@ -3,17 +3,19 @@ jest.mock("@/lib/prisma", () => ({
     rateLimitBucket: {
       findUnique: jest.fn(),
       create: jest.fn(),
+      deleteMany: jest.fn(),
       updateMany: jest.fn(),
     },
   },
 }))
 
 import { prisma } from "@/lib/prisma"
-import { enforceRateLimit } from "@/lib/rate-limit"
+import { enforceRateLimit, resetRateLimits } from "@/lib/rate-limit"
 
 const store = prisma.rateLimitBucket as unknown as {
   findUnique: jest.Mock
   create: jest.Mock
+  deleteMany: jest.Mock
   updateMany: jest.Mock
 }
 
@@ -22,6 +24,7 @@ describe("shared rate limiting", () => {
 
   beforeEach(() => {
     jest.clearAllMocks()
+    resetRateLimits()
     process.env.RATE_LIMIT_STORE = "mongodb"
   })
 
@@ -42,6 +45,30 @@ describe("shared rate limiting", () => {
     })
   })
 
+  it("prunes expired shared buckets without affecting the request decision", async () => {
+    store.deleteMany.mockResolvedValue({ count: 3 })
+    store.updateMany.mockResolvedValue({ count: 0 })
+    store.create.mockResolvedValue({ count: 1, resetAt: new Date(Date.now() + 60_000) })
+
+    const result = await enforceRateLimit("user-1", { limit: 2, windowMs: 60_000 })
+
+    expect(result.allowed).toBe(true)
+    expect(store.deleteMany).toHaveBeenCalledWith({
+      where: { resetAt: { lte: expect.any(Date) } },
+    })
+  })
+
+  it("keeps serving the limiter when maintenance cleanup fails", async () => {
+    store.deleteMany.mockRejectedValue(new Error("cleanup unavailable"))
+    store.updateMany.mockResolvedValue({ count: 0 })
+    store.create.mockResolvedValue({ count: 1, resetAt: new Date(Date.now() + 60_000) })
+
+    const result = await enforceRateLimit("user-1", { limit: 2, windowMs: 60_000 })
+
+    expect(result.allowed).toBe(true)
+    expect(store.updateMany).toHaveBeenCalled()
+  })
+
   it("atomically denies requests after the shared limit", async () => {
     store.updateMany
       .mockResolvedValueOnce({ count: 0 })
@@ -53,5 +80,15 @@ describe("shared rate limiting", () => {
 
     expect(result.allowed).toBe(false)
     expect(result.remaining).toBe(0)
+  })
+
+  it("fails closed when the shared store is unavailable", async () => {
+    store.updateMany.mockRejectedValue(new Error("database unavailable"))
+
+    const result = await enforceRateLimit("user-1", { limit: 2, windowMs: 60_000 })
+
+    expect(result.allowed).toBe(false)
+    expect(result.remaining).toBe(0)
+    expect(result.resetAt).toBeGreaterThan(Date.now())
   })
 })

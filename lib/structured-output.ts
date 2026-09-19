@@ -22,6 +22,7 @@ const MAX_ITEM_LENGTH = 2_000
 const MAX_SECTIONS = 50
 const MAX_SLIDES = 50
 const MAX_BULLETS = 20
+const MAX_PRICING_ROWS = 20
 
 function asString(value: unknown): string | null {
   return typeof value === "string" && value.trim().length > 0 ? value.trim() : null
@@ -84,10 +85,32 @@ function validateStringList(value: unknown, field: string, errors: string[], req
   value.forEach((item, index) => validateBoundedString(item, `${field}[${index}]`, MAX_ITEM_LENGTH, errors, true))
 }
 
+function validatePricing(value: unknown, errors: string[]) {
+  if (value === undefined) return
+  if (!Array.isArray(value)) {
+    errors.push("pricing must be an array")
+    return
+  }
+  if (value.length > MAX_PRICING_ROWS) errors.push(`pricing must contain ${MAX_PRICING_ROWS} items or fewer`)
+
+  value.forEach((item, index) => {
+    const field = `pricing[${index}]`
+    if (!item || typeof item !== "object" || Array.isArray(item)) {
+      errors.push(`${field} must be an object`)
+      return
+    }
+    const record = item as Record<string, unknown>
+    validateBoundedString(record.item, `${field}.item`, MAX_ITEM_LENGTH, errors, true)
+    validateBoundedString(record.description, `${field}.description`, MAX_ITEM_LENGTH, errors)
+    validateBoundedString(record.amount, `${field}.amount`, MAX_ITEM_LENGTH, errors, true)
+  })
+}
+
 function validateProposal(value: Record<string, unknown>): string[] {
   const errors: string[] = []
   validateBoundedString(value.title, "title", MAX_TITLE_LENGTH, errors, true)
   validateBoundedString(value.executiveSummary, "executiveSummary", MAX_TEXT_LENGTH, errors, true)
+  validatePricing(value.pricing, errors)
 
   if (!Array.isArray(value.sections)) {
     errors.push("sections must be an array")
@@ -184,11 +207,32 @@ function proposalFromJson(value: Record<string, unknown>): string | null {
       })
     : []
 
+  const pricing = Array.isArray(value.pricing)
+    ? value.pricing
+        .map((item) => item as Record<string, unknown>)
+        .map((item) => [asString(item.item), asString(item.description), asString(item.amount)] as const)
+        .filter((row): row is [string, string | null, string] => Boolean(row[0] && row[2]))
+    : []
+  const pricingTable = pricing.length > 0
+    ? [
+        "## Pricing",
+        "",
+        "| Item | Description | Amount |",
+        "| --- | --- | ---: |",
+        ...pricing.map(([item, description, amount]) => `| ${escapeMarkdownTableCell(item)} | ${escapeMarkdownTableCell(description || "")} | ${escapeMarkdownTableCell(amount)} |`),
+      ].join("\n")
+    : null
+
   return [
     `# ${title}`,
     `## Executive Summary\n\n${executiveSummary}`,
     ...sections,
+    pricingTable,
   ].filter(Boolean).join("\n\n")
+}
+
+function escapeMarkdownTableCell(value: string): string {
+  return value.replace(/\\/g, "\\\\").replace(/\|/g, "\\|").replace(/\r?\n/g, " ")
 }
 
 function pitchDeckFromJson(value: Record<string, unknown>): string | null {

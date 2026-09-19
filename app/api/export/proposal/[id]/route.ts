@@ -1,19 +1,37 @@
 import { auth } from "@/auth"
 import { type NextRequest, NextResponse } from "next/server"
 import { chromium } from "playwright-core"
-import { AlignmentType, Document, Footer, HeadingLevel, PageNumber, Packer, Paragraph, TextRun } from "docx"
+import {
+  AlignmentType,
+  BorderStyle,
+  Document,
+  Footer,
+  HeadingLevel,
+  PageNumber,
+  Packer,
+  Paragraph,
+  Table,
+  TableCell,
+  TableLayoutType,
+  TableRow,
+  TextRun,
+  WidthType,
+} from "docx"
 import { prisma } from "@/lib/prisma"
 import { safeFilename } from "@/lib/safe-filename"
 import { escapeHtml } from "@/lib/sanitize-html"
 import { enforceRateLimit } from "@/lib/rate-limit"
 import { isMongoObjectId } from "@/lib/mongo-id"
 import { getRequestId, jsonWithRequestId } from "@/lib/request-id"
+import { parseMarkdownTableBlock, type MarkdownTable } from "@/lib/markdown-table"
+import { recordProductEvent } from "@/lib/product-events"
+import { sendOperationalErrorTelemetry } from "@/lib/error-monitoring"
+import { acquireExportConcurrencySlot } from "@/lib/export-concurrency"
+import { EXPORT_LAUNCH_TIMEOUT_MS, EXPORT_RENDER_TIMEOUT_MS, throwIfExportAborted, withExportTimeout } from "@/lib/export-timeout"
 
-interface ExportProposalParams {
-  params: {
-    id: string
-  }
-}
+export const runtime = "nodejs"
+export const maxDuration = 60
+const SUPPORTED_EXPORT_FORMATS = new Set(["pdf", "docx"])
 
 // Function to get proposal data from database
 async function getProposal(id: string, userId: string) {
@@ -45,6 +63,10 @@ export async function GET(request: NextRequest, props: { params: Promise<{ id: s
   const json = (body: unknown, init: ResponseInit = {}) =>
     NextResponse.json(body, jsonWithRequestId(requestId, init))
   let browser: Awaited<ReturnType<typeof chromium.launch>> | null = null
+  let exportUserId: string | undefined
+  let exportDocumentId: string | undefined
+  let exportFormat = "pdf"
+  let releaseExportSlot: (() => void) | null = null
 
   try {
     const session = await auth()
@@ -52,6 +74,7 @@ export async function GET(request: NextRequest, props: { params: Promise<{ id: s
     if (!session || !session.user || !session.user.id) {
       return json({ error: "Unauthorized", requestId }, { status: 401 })
     }
+    exportUserId = session.user.id
 
     if (!isMongoObjectId(params.id)) {
       return json({ error: "Invalid proposal ID", requestId }, { status: 400 })
@@ -61,7 +84,7 @@ export async function GET(request: NextRequest, props: { params: Promise<{ id: s
       const rateLimit = await enforceRateLimit(`proposal-export:${session.user.id}`, { limit: 20, windowMs: 60_000 })
       if (!rateLimit.allowed) {
         return json(
-          { error: "Too many export requests. Please try again shortly." },
+          { error: "Too many export requests. Please try again shortly.", requestId },
           { status: 429, headers: { "Retry-After": String(Math.ceil((rateLimit.resetAt - Date.now()) / 1000)) } },
         )
       }
@@ -69,17 +92,31 @@ export async function GET(request: NextRequest, props: { params: Promise<{ id: s
 
     const { searchParams } = new URL(request.url)
     const format = searchParams.get("format") || "pdf"
+    exportFormat = format
+    if (!SUPPORTED_EXPORT_FORMATS.has(format)) {
+      return json({ error: "Invalid format", requestId }, { status: 400 })
+    }
 
     const proposal = await getProposal(params.id, session.user.id)
 
     if (!proposal) {
       return json({ error: "Proposal not found", requestId }, { status: 404 })
     }
+    exportDocumentId = proposal.id
+    releaseExportSlot = acquireExportConcurrencySlot(session.user.id)
+    if (!releaseExportSlot) {
+      return json(
+        { error: "Export capacity is currently busy. Please try again shortly.", requestId },
+        { status: 429, headers: { "Retry-After": "5" } },
+      )
+    }
+    throwIfExportAborted(request.signal)
 
     if (format === "pdf") {
       // Generate PDF using the deployment-provided Chromium executable.
       const launchOptions: Parameters<typeof chromium.launch>[0] = {
         headless: true,
+        timeout: EXPORT_LAUNCH_TIMEOUT_MS,
         args: ["--no-sandbox", "--disable-setuid-sandbox"],
       }
       const executablePath = process.env.CHROMIUM_EXECUTABLE_PATH?.trim() || process.env.PUPPETEER_EXECUTABLE_PATH?.trim()
@@ -180,6 +217,33 @@ export async function GET(request: NextRequest, props: { params: Promise<{ id: s
               border-top: 1px solid #d7e0e7;
               margin: 30px 0;
             }
+            .proposal-table {
+              border-collapse: collapse;
+              break-inside: avoid;
+              font-size: 13px;
+              margin: 18px 0 24px;
+              width: 100%;
+            }
+            .proposal-table th,
+            .proposal-table td {
+              border: 1px solid #d7e0e7;
+              padding: 9px 10px;
+              text-align: left;
+              vertical-align: top;
+            }
+            .proposal-table th {
+              background: #0e7373;
+              color: #ffffff;
+              font-size: 11px;
+              letter-spacing: 0.04em;
+              text-transform: uppercase;
+            }
+            .proposal-table.pricing-table th {
+              background: #0d1b2a;
+            }
+            .proposal-table tr {
+              break-inside: avoid;
+            }
           </style>
         </head>
         <body>
@@ -188,9 +252,10 @@ export async function GET(request: NextRequest, props: { params: Promise<{ id: s
         </html>
       `
 
-      await page.setContent(htmlContent, { waitUntil: "load" })
+      await page.setContent(htmlContent, { waitUntil: "load", timeout: EXPORT_RENDER_TIMEOUT_MS, signal: request.signal })
 
-      const pdf = await page.pdf({
+      throwIfExportAborted(request.signal)
+      const pdf = await withExportTimeout(page.pdf({
         format: "A4",
         printBackground: true,
         displayHeaderFooter: true,
@@ -202,12 +267,22 @@ export async function GET(request: NextRequest, props: { params: Promise<{ id: s
           bottom: "20mm",
           left: "20mm",
         },
+      }))
+      throwIfExportAborted(request.signal)
+
+      await recordProductEvent({
+        name: "export_used",
+        userId: session.user.id,
+        documentId: proposal.id,
+        requestId,
+        metadata: { format: "pdf", type: "proposal" },
       })
 
       return new NextResponse(new Uint8Array(pdf), {
         headers: {
           "Content-Type": "application/pdf",
           "Content-Disposition": `attachment; filename="${safeFilename(proposal.projectTitle, "proposal")}.pdf"`,
+          "Cache-Control": "no-store",
           "X-Request-ID": requestId,
         },
       })
@@ -250,12 +325,23 @@ export async function GET(request: NextRequest, props: { params: Promise<{ id: s
         ],
       })
 
-      const buffer = await Packer.toBuffer(doc)
+      throwIfExportAborted(request.signal)
+      const buffer = await withExportTimeout(Packer.toBuffer(doc))
+      throwIfExportAborted(request.signal)
+
+      await recordProductEvent({
+        name: "export_used",
+        userId: session.user.id,
+        documentId: proposal.id,
+        requestId,
+        metadata: { format: "docx", type: "proposal" },
+      })
 
       return new NextResponse(new Uint8Array(buffer), {
         headers: {
           "Content-Type": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
           "Content-Disposition": `attachment; filename="${safeFilename(proposal.projectTitle, "proposal")}.docx"`,
+          "Cache-Control": "no-store",
           "X-Request-ID": requestId,
         },
       })
@@ -263,10 +349,33 @@ export async function GET(request: NextRequest, props: { params: Promise<{ id: s
 
     return json({ error: "Invalid format", requestId }, { status: 400 })
   } catch (error) {
-    console.error("Error exporting proposal", {
-      requestId,
-      error: error instanceof Error ? error.name : "unknown",
-    })
+    const cancelled = request.signal.aborted || (error instanceof Error && error.name === "AbortError")
+    if (exportUserId) {
+      await recordProductEvent({
+        name: "export_failed",
+        userId: exportUserId,
+        ...(exportDocumentId ? { documentId: exportDocumentId } : {}),
+        requestId,
+        metadata: { format: exportFormat, type: "proposal" },
+      })
+    }
+    if (!cancelled) {
+      console.error("Error exporting proposal", {
+        requestId,
+        error: error instanceof Error ? error.name : "unknown",
+      })
+      void sendOperationalErrorTelemetry({
+        event: "export_failed",
+        requestId,
+        path: "/api/export/proposal/:id",
+        method: "GET",
+        category: "export",
+        error: error instanceof Error ? error.name : "unknown",
+      })
+    }
+    if (cancelled) {
+      return json({ error: "Export request cancelled", requestId }, { status: 499 })
+    }
     return json({ error: "Failed to export proposal", requestId }, { status: 500 })
   } finally {
     if (browser) {
@@ -279,6 +388,7 @@ export async function GET(request: NextRequest, props: { params: Promise<{ id: s
         })
       }
     }
+    releaseExportSlot?.()
   }
 }
 
@@ -292,7 +402,17 @@ function formatContentForPDF(content: string, clientName: string | null, clientC
     output.push(`<ul>${listItems.splice(0).join("")}</ul>`)
   }
 
-  for (const line of content.split(/\r?\n/)) {
+  const lines = content.split(/\r?\n/)
+  for (let index = 0; index < lines.length; index += 1) {
+    const tableBlock = parseMarkdownTableBlock(lines, index)
+    if (tableBlock) {
+      flushList()
+      output.push(renderTableForPDF(tableBlock.table))
+      index = tableBlock.nextIndex - 1
+      continue
+    }
+
+    const line = lines[index]
     if (line.startsWith("- ")) {
       listItems.push(`<li>${escapeHtml(line.slice(2))}</li>`)
       continue
@@ -333,10 +453,26 @@ function formatContentForPDF(content: string, clientName: string | null, clientC
   return output.join("")
 }
 
-async function formatContentForDOCX(content: string): Promise<Paragraph[]> {
-  const paragraphs: Paragraph[] = []
+function renderTableForPDF(table: MarkdownTable): string {
+  const className = table.pricing ? "proposal-table pricing-table" : "proposal-table"
+  const header = table.headers.map((cell) => `<th scope="col">${escapeHtml(cell)}</th>`).join("")
+  const rows = table.rows.map((row) => `<tr>${row.map((cell) => `<td>${escapeHtml(cell)}</td>`).join("")}</tr>`).join("")
+  return `<table class="${className}"><thead><tr>${header}</tr></thead><tbody>${rows}</tbody></table>`
+}
 
-  content.split("\n").forEach((line) => {
+async function formatContentForDOCX(content: string): Promise<Array<Paragraph | Table>> {
+  const paragraphs: Array<Paragraph | Table> = []
+
+  const lines = content.split(/\r?\n/)
+  for (let index = 0; index < lines.length; index += 1) {
+    const tableBlock = parseMarkdownTableBlock(lines, index)
+    if (tableBlock) {
+      paragraphs.push(createDocxTable(tableBlock.table))
+      index = tableBlock.nextIndex - 1
+      continue
+    }
+
+    const line = lines[index]
     if (line.startsWith("# ")) {
       paragraphs.push(
         new Paragraph({
@@ -385,7 +521,40 @@ async function formatContentForDOCX(content: string): Promise<Paragraph[]> {
         }),
       )
     }
-  })
+  }
 
   return paragraphs
+}
+
+function createDocxTable(table: MarkdownTable): Table {
+  const rows = [table.headers, ...table.rows].map((cells, rowIndex) => new TableRow({
+    tableHeader: rowIndex === 0,
+    children: cells.map((cell) => new TableCell({
+      shading: rowIndex === 0 ? { fill: table.pricing ? "0D1B2A" : "0E7373" } : undefined,
+      children: [new Paragraph({
+        children: [new TextRun({
+          text: cell,
+          bold: rowIndex === 0,
+          color: rowIndex === 0 ? "FFFFFF" : "0D1B2A",
+          size: 18,
+        })],
+      })],
+    })),
+  }))
+
+  const columnWidth = Math.floor(9_000 / table.headers.length)
+  return new Table({
+    rows,
+    width: { size: 9_000, type: WidthType.DXA },
+    columnWidths: table.headers.map(() => columnWidth),
+    layout: TableLayoutType.FIXED,
+    borders: {
+      top: { style: BorderStyle.SINGLE, size: 4, color: "D7E0E7" },
+      bottom: { style: BorderStyle.SINGLE, size: 4, color: "D7E0E7" },
+      left: { style: BorderStyle.SINGLE, size: 4, color: "D7E0E7" },
+      right: { style: BorderStyle.SINGLE, size: 4, color: "D7E0E7" },
+      insideHorizontal: { style: BorderStyle.SINGLE, size: 4, color: "D7E0E7" },
+      insideVertical: { style: BorderStyle.SINGLE, size: 4, color: "D7E0E7" },
+    },
+  })
 }

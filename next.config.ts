@@ -7,6 +7,7 @@ const nextConfig: NextConfig = {
   // contains a lockfile.
   outputFileTracingRoot: process.cwd(),
   async headers() {
+    const developmentScriptPolicy = process.env.NODE_ENV === "production" ? "" : " 'unsafe-eval'"
     const securityHeaders = [
       { key: "X-Content-Type-Options", value: "nosniff" },
       { key: "X-Frame-Options", value: "DENY" },
@@ -19,7 +20,7 @@ const nextConfig: NextConfig = {
         key: "Content-Security-Policy",
         value: [
           "default-src 'self'",
-          "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
+          `script-src 'self' 'unsafe-inline'${developmentScriptPolicy}`,
           "style-src 'self' 'unsafe-inline'",
           "img-src 'self' data: blob: https:",
           "font-src 'self' data: https:",
@@ -41,6 +42,13 @@ const nextConfig: NextConfig = {
       {
         source: "/(.*)",
         headers: securityHeaders,
+      },
+      {
+        source: "/share/:token",
+        headers: [
+          { key: "Cache-Control", value: "private, no-store, max-age=0" },
+          { key: "Referrer-Policy", value: "no-referrer" },
+        ],
       },
     ]
   },

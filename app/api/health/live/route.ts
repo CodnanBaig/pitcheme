@@ -1,6 +1,9 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { getRequestId, jsonWithRequestId } from "@/lib/request-id"
 
+export const runtime = "nodejs"
+export const maxDuration = 5
+
 /** Process liveness: this probe intentionally does not depend on external services. */
 export function GET(request: NextRequest) {
   const requestId = getRequestId(request)

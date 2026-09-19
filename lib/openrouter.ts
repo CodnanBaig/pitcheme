@@ -1,14 +1,24 @@
 import { createOpenAI } from '@ai-sdk/openai';
+import modelConfiguration from '@/config/openrouter-models.json';
+
+function configuredModel(name: string, fallback: string): string {
+  const value = process.env[name]?.trim()
+  return value && value.length <= 160 && !/\s/.test(value) ? value : fallback
+}
+
+export function getConfiguredModels() {
+  return Object.fromEntries(
+    Object.entries(modelConfiguration).map(([role, config]) => [
+      role,
+      configuredModel(config.environment, config.default),
+    ]),
+  ) as Record<keyof typeof modelConfiguration, string>
+}
 
 // OpenRouter configuration for free models
 export const openRouterConfig = {
   baseURL: 'https://openrouter.ai/api/v1',
-  models: {
-    primary: 'meta-llama/llama-3.1-8b-instruct:free',
-    fallback: 'google/gemma-2-9b-it:free',
-    lightweight: 'deepseek/deepseek-r1-distill-llama-70b:free',
-    visual: 'moonshotai/kimi-k2:free'
-  },
+  models: getConfiguredModels(),
   maxTokens: 4000,
   temperature: 0.7
 } as const;
@@ -21,16 +31,17 @@ export const openrouter = createOpenAI({
 
 // Model selection utility
 export function selectModel(preference?: 'primary' | 'fallback' | 'lightweight' | 'visual', complexity: 'simple' | 'complex' = 'complex'): string {
+  const models = getConfiguredModels()
   if (preference) {
-    return openRouterConfig.models[preference];
+    return models[preference];
   }
   
   // Auto-select based on complexity
   if (complexity === 'simple') {
-    return openRouterConfig.models.lightweight;
+    return models.lightweight;
   }
   
-  return openRouterConfig.models.primary;
+  return models.primary;
 }
 
 // Generation response interface

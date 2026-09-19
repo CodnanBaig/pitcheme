@@ -4,8 +4,12 @@ import { prisma } from "@/lib/prisma"
 import { DocumentsWorkspace, type DocumentListItem } from "@/components/documents-workspace"
 import { getUserSubscription } from "@/lib/subscription"
 import { STRIPE_PLANS } from "@/lib/stripe"
+import { getServerRequestId, reportServerRouteError } from "@/lib/server-error-telemetry"
+
+export const runtime = "nodejs"
 
 export default async function DocumentsPage() {
+  const requestId = await getServerRequestId()
   const session = await auth()
 
   if (!session) {
@@ -17,6 +21,13 @@ export default async function DocumentsPage() {
     const documents = await prisma.document.findMany({
       where: {
         userId: session.user.id,
+      },
+      select: {
+        id: true,
+        type: true,
+        clientName: true,
+        projectTitle: true,
+        createdAt: true,
       },
       orderBy: {
         createdAt: "desc",
@@ -40,12 +51,16 @@ export default async function DocumentsPage() {
       }))}
     />
   } catch (error) {
-    console.error("Error loading documents", {
-      error: error instanceof Error ? error.name : "unknown",
+    reportServerRouteError({
+      requestId,
+      path: "/documents",
+      category: "documents-data",
+      error,
     })
     return <DocumentsWorkspace
       user={{ name: session.user?.name, email: session.user?.email }}
       documents={[]}
+      loadError
     />
   }
 }

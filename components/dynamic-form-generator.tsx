@@ -99,14 +99,20 @@ export function DynamicFormField({ field, value, onChange }: DynamicFormFieldPro
           {Array.isArray(value) && value.length > 0 && (
             <div className="flex flex-wrap gap-2">
               {value.map((selectedValue) => (
-                <Badge 
-                  key={selectedValue} 
-                  variant="secondary" 
+                <Badge
+                  key={selectedValue}
+                  asChild
+                  variant="secondary"
                   className="text-xs px-2 py-1 cursor-pointer hover:bg-secondary/80"
-                  onClick={() => removeMultiSelectValue(selectedValue)}
                 >
-                  {selectedValue}
-                  <X className="w-3 h-3 ml-1" />
+                  <button
+                    type="button"
+                    aria-label={`Remove ${selectedValue}`}
+                    onClick={() => removeMultiSelectValue(selectedValue)}
+                  >
+                    {selectedValue}
+                    <X className="w-3 h-3 ml-1" />
+                  </button>
                 </Badge>
               ))}
             </div>

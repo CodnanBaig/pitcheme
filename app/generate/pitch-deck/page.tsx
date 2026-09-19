@@ -1,6 +1,6 @@
 import { auth } from "@/auth"
 import { redirect } from "next/navigation"
-import { EnhancedPitchDeckForm } from "@/components/enhanced-pitch-deck-form"
+import { PitchDeckFormShell } from "@/components/generation-form-shell"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -71,7 +71,7 @@ export default async function GeneratePitchDeckPage() {
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <EnhancedPitchDeckForm />
+                  <PitchDeckFormShell />
                 </CardContent>
               </Card>
             </div>

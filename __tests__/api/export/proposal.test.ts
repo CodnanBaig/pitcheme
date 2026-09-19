@@ -9,7 +9,7 @@ import { GET } from '@/app/api/export/proposal/[id]/route'
 import { auth } from '@/auth'
 import { prisma } from '@/lib/prisma'
 import { chromium } from 'playwright-core'
-import { Document, Packer } from 'docx'
+import { Document, Packer, Table } from 'docx'
 
 // Type cast the mocks
 const mockAuth = auth as jest.MockedFunction<typeof auth>
@@ -17,6 +17,7 @@ const mockPrismaDocumentFindFirst = prisma.document.findFirst as jest.MockedFunc
 const mockChromium = chromium as jest.Mocked<typeof chromium>
 const mockDocument = Document as jest.MockedClass<typeof Document>
 const mockPacker = Packer as jest.Mocked<typeof Packer>
+const mockTable = Table as jest.MockedClass<typeof Table>
 
 describe('/api/export/proposal/[id]', () => {
   beforeEach(() => {
@@ -90,6 +91,7 @@ Total project cost: $50,000`,
       expect(response.status).toBe(200)
       expect(response.headers.get('Content-Type')).toBe('application/pdf')
       expect(response.headers.get('Content-Disposition')).toContain('Custom_CRM_Development.pdf')
+      expect(response.headers.get('Cache-Control')).toBe('no-store')
       expect(response.headers.get('X-Request-ID')).toEqual(expect.any(String))
 
       expect(mockAuth).toHaveBeenCalled()
@@ -154,6 +156,30 @@ Total project cost: $50,000`,
       expect(htmlContent).toContain('#0e7373')
       expect(htmlContent).toContain('cover-page')
     })
+
+    it('renders Markdown pricing tables with an enterprise export treatment', async () => {
+      mockAuth.mockResolvedValue(validSession as any)
+      mockPrismaDocumentFindFirst.mockResolvedValue({
+        ...mockProposal,
+        content: `# Pricing Proposal
+
+## Investment
+| Deliverable | Timeline | Price |
+| --- | --- | ---: |
+| Discovery | 2 weeks | $5,000 |
+| Delivery | 6 weeks | $25,000 |`,
+      } as any)
+
+      await GET(
+        new NextRequest('http://localhost:3000/api/export/proposal/507f1f77bcf86cd799439011'),
+        { params: Promise.resolve({ id: '507f1f77bcf86cd799439011' }) },
+      )
+
+      const htmlContent = mockPage.setContent.mock.calls[0][0]
+      expect(htmlContent).toContain('<table class="proposal-table pricing-table">')
+      expect(htmlContent).toContain('<th scope="col">Price</th>')
+      expect(htmlContent).toContain('<td>$25,000</td>')
+    })
   })
 
   describe('DOCX Export', () => {
@@ -170,6 +196,7 @@ Total project cost: $50,000`,
       expect(response.status).toBe(200)
       expect(response.headers.get('Content-Type')).toBe('application/vnd.openxmlformats-officedocument.wordprocessingml.document')
       expect(response.headers.get('Content-Disposition')).toContain('Custom_CRM_Development.docx')
+      expect(response.headers.get('Cache-Control')).toBe('no-store')
 
       expect(mockDocument).toHaveBeenCalled()
       expect(mockPacker.toBuffer).toHaveBeenCalled()
@@ -201,6 +228,25 @@ Total project cost: $50,000`,
           })
         ])
       }))
+    })
+
+    it('creates a native DOCX table for Markdown pricing rows', async () => {
+      mockAuth.mockResolvedValue(validSession as any)
+      mockPrismaDocumentFindFirst.mockResolvedValue({
+        ...mockProposal,
+        content: `# Pricing Proposal
+
+| Deliverable | Price |
+| --- | ---: |
+| Discovery | $5,000 |`,
+      } as any)
+
+      await GET(
+        new NextRequest('http://localhost:3000/api/export/proposal/507f1f77bcf86cd799439011?format=docx'),
+        { params: Promise.resolve({ id: '507f1f77bcf86cd799439011' }) },
+      )
+
+      expect(mockTable).toHaveBeenCalled()
     })
   })
 
@@ -284,6 +330,8 @@ Total project cost: $50,000`,
 
       expect(response.status).toBe(400)
       expect(result.error).toBe('Invalid format')
+      expect(mockPrismaDocumentFindFirst).not.toHaveBeenCalled()
+      expect(mockChromium.launch).not.toHaveBeenCalled()
     })
 
     it('should handle database errors gracefully', async () => {

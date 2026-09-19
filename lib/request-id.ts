@@ -13,5 +13,9 @@ export function jsonWithRequestId(
 ): ResponseInit {
   const headers = new Headers(init.headers)
   headers.set("X-Request-ID", requestId)
+  // API responses may contain authenticated or generated document data. Keep
+  // them out of browser and intermediary caches unless a route explicitly
+  // returns a non-API response.
+  headers.set("Cache-Control", "no-store")
   return { ...init, headers }
 }

@@ -1,6 +1,6 @@
 import { auth } from "@/auth"
 import { redirect } from "next/navigation"
-import { EnhancedProposalForm } from "@/components/enhanced-proposal-form"
+import { ProposalFormShell } from "@/components/generation-form-shell"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -71,7 +71,7 @@ export default async function GenerateProposalPage() {
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
-                <EnhancedProposalForm />
+                <ProposalFormShell />
                 </CardContent>
               </Card>
             </div>

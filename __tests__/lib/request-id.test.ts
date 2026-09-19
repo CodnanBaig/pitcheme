@@ -21,5 +21,6 @@ describe("request IDs", () => {
     expect(requestId).toMatch(/^[0-9a-f-]{36}$/)
     expect(headers.get("X-Request-ID")).toBe(requestId)
     expect(headers.get("Retry-After")).toBe("3")
+    expect(headers.get("Cache-Control")).toBe("no-store")
   })
 })

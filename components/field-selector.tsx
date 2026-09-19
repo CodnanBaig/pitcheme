@@ -1,6 +1,5 @@
 "use client"
 
-import React, { useState } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -43,11 +42,21 @@ export function FieldSelector({
           return (
             <Card 
               key={field.id}
+              role="button"
+              tabIndex={0}
+              aria-label={`Select ${field.name} industry`}
+              aria-pressed={isSelected}
               className={cn(
                 "cursor-pointer transition-all duration-200 hover:shadow-md",
                 isSelected ? "ring-2 ring-primary border-primary bg-primary/5" : "border-border hover:border-primary/50"
               )}
               onClick={() => handleFieldSelect(field)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter" || event.key === " ") {
+                  event.preventDefault()
+                  handleFieldSelect(field)
+                }
+              }}
             >
               <CardContent className="p-4">
                 <div className="flex items-start space-x-3">

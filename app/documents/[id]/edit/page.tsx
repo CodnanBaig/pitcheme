@@ -1,8 +1,11 @@
 import { auth } from "@/auth"
 import { notFound, redirect } from "next/navigation"
 import { prisma } from "@/lib/prisma"
-import { DocumentEditor } from "@/components/document-editor"
+import { DocumentEditorShell } from "@/components/document-editor-shell"
 import { isMongoObjectId } from "@/lib/mongo-id"
+import { getDocumentRevision } from "@/lib/document-revision"
+
+export const runtime = "nodejs"
 
 export default async function EditDocumentPage({ params }: { params: Promise<{ id: string }> }) {
   const session = await auth()
@@ -17,7 +20,7 @@ export default async function EditDocumentPage({ params }: { params: Promise<{ i
   if (!document) notFound()
 
   return (
-    <DocumentEditor
+    <DocumentEditorShell
       document={{
         id: document.id,
         type: document.type,
@@ -25,6 +28,7 @@ export default async function EditDocumentPage({ params }: { params: Promise<{ i
         clientCompany: document.clientCompany,
         projectTitle: document.projectTitle,
         content: document.content,
+        revision: getDocumentRevision(document),
       }}
     />
   )

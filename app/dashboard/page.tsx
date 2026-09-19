@@ -1,4 +1,5 @@
 import { auth } from "@/auth"
+import type { Session } from "next-auth"
 import { redirect } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -12,15 +13,20 @@ import {
   Zap,
   Download,
   Eye,
+  AlertCircle,
 } from "lucide-react"
 import Link from "next/link"
 import { prisma } from "@/lib/prisma"
 import { getUserSubscription, getUserUsage } from "@/lib/subscription"
-import { STRIPE_PLANS } from "@/lib/stripe"
+import { isStripeBillingEnabled, STRIPE_PLANS } from "@/lib/stripe"
 import { AuthButton } from "@/components/auth-button"
 import { MobileNav } from "@/components/mobile-nav"
+import { getServerRequestId, reportServerRouteError } from "@/lib/server-error-telemetry"
+
+export const runtime = "nodejs"
 
 export default async function DashboardPage() {
+  const requestId = await getServerRequestId()
   const session = await auth()
 
   if (!session || !session.user?.id) {
@@ -32,6 +38,13 @@ export default async function DashboardPage() {
     const recentDocuments = await prisma.document.findMany({
       where: {
         userId: session.user.id,
+      },
+      select: {
+        id: true,
+        type: true,
+        clientName: true,
+        projectTitle: true,
+        createdAt: true,
       },
       orderBy: {
         createdAt: "desc",
@@ -72,21 +85,23 @@ export default async function DashboardPage() {
         recentDocuments={recentDocuments}
         stats={stats}
         subscription={subscription}
-        usage={usage}
       />
     )
   } catch (error) {
-    console.error("Error loading dashboard", {
-      error: error instanceof Error ? error.name : "unknown",
+    reportServerRouteError({
+      requestId,
+      path: "/dashboard",
+      category: "dashboard-data",
+      error,
     })
     // Return dashboard with empty data on error
     return (
       <DashboardContent
         session={session}
         recentDocuments={[]}
-        stats={{ totalDocuments: 0, thisMonth: 0, generationsThisMonth: 0 }}
+        stats={null}
         subscription={null}
-        usage={{ proposals: 0, pitchDecks: 0 }}
+        loadError
       />
     )
   }
@@ -102,15 +117,18 @@ type DashboardDocument = {
 }
 
 type DashboardContentProps = {
-  session: any
+  session: Session
   recentDocuments: DashboardDocument[]
-  stats: { totalDocuments: number; thisMonth: number; generationsThisMonth: number }
+  stats: { totalDocuments: number; thisMonth: number; generationsThisMonth: number } | null
   subscription: { plan?: string } | null
-  usage: { proposals: number; pitchDecks: number }
+  loadError?: boolean
 }
 
-function DashboardContent({ session, recentDocuments, stats, subscription, usage }: DashboardContentProps) {
-  const plan = STRIPE_PLANS[(subscription?.plan as keyof typeof STRIPE_PLANS) || "FREE"] || STRIPE_PLANS.FREE
+function DashboardContent({ session, recentDocuments, stats, subscription, loadError = false }: DashboardContentProps) {
+  const plan = subscription
+    ? STRIPE_PLANS[(subscription.plan as keyof typeof STRIPE_PLANS) || "FREE"] || STRIPE_PLANS.FREE
+    : null
+  const billingEnabled = isStripeBillingEnabled()
 
   return (
     <div className="min-h-screen bg-background">
@@ -137,7 +155,7 @@ function DashboardContent({ session, recentDocuments, stats, subscription, usage
             </nav>
             <div className="flex items-center gap-2 sm:gap-4">
               <Badge variant="secondary" className="hidden sm:flex">
-                {plan.name} Plan
+                {plan ? `${plan.name} Plan` : "Plan unavailable"}
               </Badge>
               <MobileNav
                 items={[
@@ -160,6 +178,25 @@ function DashboardContent({ session, recentDocuments, stats, subscription, usage
           </h1>
           <p className="text-muted-foreground">Ready to create your next winning proposal or pitch deck?</p>
         </div>
+
+        {loadError && (
+          <Card role="alert" className="mb-8 border-destructive/30 bg-destructive/5">
+            <CardContent className="flex flex-col gap-4 p-5 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex items-start gap-3">
+                <AlertCircle className="mt-0.5 h-5 w-5 shrink-0 text-destructive" aria-hidden="true" />
+                <div>
+                  <p className="font-medium text-foreground">Workspace data is temporarily unavailable.</p>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    Your saved documents are safe. Retry the dashboard once the database connection recovers.
+                  </p>
+                </div>
+              </div>
+              <Button asChild variant="outline" className="shrink-0">
+                <a href="/dashboard">Retry dashboard</a>
+              </Button>
+            </CardContent>
+          </Card>
+        )}
 
         {/* Quick Actions */}
         <div className="grid md:grid-cols-2 gap-6 mb-8">
@@ -217,26 +254,36 @@ function DashboardContent({ session, recentDocuments, stats, subscription, usage
                     <FileText className="w-4 h-4 text-muted-foreground" />
                     <span className="text-sm text-muted-foreground">Total Documents</span>
                   </div>
-                  <span className="font-semibold text-foreground">{stats.totalDocuments}</span>
+                  <span className="font-semibold text-foreground">{stats?.totalDocuments ?? "—"}</span>
                 </div>
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <Clock className="w-4 h-4 text-muted-foreground" />
                     <span className="text-sm text-muted-foreground">This Month</span>
                   </div>
-                  <span className="font-semibold text-foreground">{stats.thisMonth}</span>
+                  <span className="font-semibold text-foreground">{stats?.thisMonth ?? "—"}</span>
                 </div>
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <TrendingUp className="w-4 h-4 text-muted-foreground" />
                     <span className="text-sm text-muted-foreground">Generations This Month</span>
                   </div>
-                  <span className="font-semibold text-primary">{stats.generationsThisMonth}</span>
+                  <span className="font-semibold text-primary">{stats?.generationsThisMonth ?? "—"}</span>
                 </div>
               </CardContent>
             </Card>
 
-            {plan.name === "Free" ? (
+            {loadError ? (
+              <Card className="border-border bg-muted/30">
+                <CardHeader className="pb-4">
+                  <CardTitle className="text-lg flex items-center gap-2">
+                    <AlertCircle className="w-5 h-5 text-muted-foreground" aria-hidden="true" />
+                    Plan details unavailable
+                  </CardTitle>
+                  <CardDescription>Retry the dashboard to refresh your subscription and usage status.</CardDescription>
+                </CardHeader>
+              </Card>
+            ) : plan?.name === "Free" && billingEnabled ? (
               <Card className="border-primary/20 bg-primary/5">
                 <CardHeader className="pb-4">
                   <CardTitle className="text-lg flex items-center gap-2">
@@ -251,12 +298,27 @@ function DashboardContent({ session, recentDocuments, stats, subscription, usage
                   </Button>
                 </CardContent>
               </Card>
+            ) : plan?.name === "Free" ? (
+              <Card className="border-border bg-muted/30">
+                <CardHeader className="pb-4">
+                  <CardTitle className="text-lg flex items-center gap-2">
+                    <Zap className="w-5 h-5 text-muted-foreground" />
+                    Paid plans staged
+                  </CardTitle>
+                  <CardDescription>Billing is disabled in this deployment; your free workspace remains available.</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <Button asChild variant="outline" className="w-full">
+                    <Link href="/pricing">View plan details</Link>
+                  </Button>
+                </CardContent>
+              </Card>
             ) : (
               <Card className="border-primary/20 bg-primary/5">
                 <CardHeader className="pb-4">
                   <CardTitle className="text-lg flex items-center gap-2">
                     <Zap className="w-5 h-5 text-primary" />
-                    {plan.name} workspace
+                    {plan?.name || "Workspace"} workspace
                   </CardTitle>
                   <CardDescription>Your current plan is reflected in usage limits and account settings.</CardDescription>
                 </CardHeader>
@@ -322,6 +384,12 @@ function DashboardContent({ session, recentDocuments, stats, subscription, usage
                         </div>
                       </div>
                     ))}
+                  </div>
+                ) : loadError ? (
+                  <div className="py-8 text-center">
+                    <AlertCircle className="mx-auto mb-4 h-8 w-8 text-muted-foreground" aria-hidden="true" />
+                    <h3 className="font-medium text-foreground mb-2">Recent documents unavailable</h3>
+                    <p className="text-muted-foreground">Retry the dashboard after the database connection recovers.</p>
                   </div>
                 ) : (
                   <div className="text-center py-8">

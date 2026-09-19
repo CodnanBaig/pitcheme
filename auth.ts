@@ -7,7 +7,7 @@ import { getServerSession } from "next-auth"
 import { prisma } from "@/lib/prisma"
 import { verifyPassword } from "@/lib/auth-utils"
 import { assertRuntimeEnvironment } from "@/lib/env"
-import { enforceRateLimit } from "@/lib/rate-limit"
+import { enforceCredentialsLoginRateLimit } from "@/lib/auth-rate-limit"
 
 assertRuntimeEnvironment()
 
@@ -17,7 +17,7 @@ const credentialsProvider = CredentialsProvider({
     email: { label: "Email", type: "email" },
     password: { label: "Password", type: "password" }
   },
-  async authorize(credentials) {
+  async authorize(credentials, request) {
     const email = typeof credentials?.email === "string"
       ? credentials.email.trim().toLowerCase()
       : ""
@@ -28,7 +28,7 @@ const credentialsProvider = CredentialsProvider({
     }
 
     if (process.env.NODE_ENV !== "test") {
-      const rateLimit = await enforceRateLimit(`credentials-login:${email}`, { limit: 10, windowMs: 60_000 })
+      const rateLimit = await enforceCredentialsLoginRateLimit(email, request)
       if (!rateLimit.allowed) return null
     }
 
@@ -123,9 +123,8 @@ export const authOptions: NextAuthOptions = {
   },
   events: {
     async signIn(message: { user: User; account: Account | null; profile?: Profile; isNewUser?: boolean }) {
-      const { user, account, isNewUser } = message
+      const { account, isNewUser } = message
       console.log("User signed in", {
-        userId: user.id,
         provider: account?.provider || "credentials",
         isNewUser: Boolean(isNewUser),
       })
@@ -139,10 +138,5 @@ export const authOptions: NextAuthOptions = {
 }
 
 export const auth = () => getServerSession(authOptions)
-
-export const signIn = async (_provider?: string, _options?: Record<string, unknown>) => {
-  // This is a placeholder - actual signIn should be imported from next-auth/react on client
-  throw new Error("signIn should be imported from next-auth/react on client side")
-}
 
 export default NextAuth(authOptions)

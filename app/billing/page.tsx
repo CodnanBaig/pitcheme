@@ -9,6 +9,8 @@ import { Badge } from "@/components/ui/badge"
 import { Progress } from "@/components/ui/progress"
 import { ManageSubscriptionButton } from "@/components/manage-subscription-button"
 
+export const runtime = "nodejs"
+
 export default async function BillingPage() {
   const session = await getServerSession(authOptions)
   if (!session?.user?.id) {
@@ -105,7 +107,7 @@ export default async function BillingPage() {
               />
             </div>
 
-            {planKey === "FREE" && (
+            {planKey === "FREE" && billingEnabled ? (
               <div className="mt-4 p-3 bg-blue-50 rounded-lg">
                 <p className="text-sm text-blue-800">
                   Upgrade to Pro for unlimited document generation and premium features.
@@ -114,7 +116,13 @@ export default async function BillingPage() {
                   <a href="/pricing">Upgrade Now</a>
                 </Button>
               </div>
-            )}
+            ) : planKey === "FREE" ? (
+              <div className="mt-4 rounded-lg border border-border bg-muted/30 p-3">
+                <p className="text-sm text-muted-foreground">
+                  Paid billing is staged in this deployment. Your free plan limits remain active.
+                </p>
+              </div>
+            ) : null}
           </CardContent>
         </Card>
       </div>

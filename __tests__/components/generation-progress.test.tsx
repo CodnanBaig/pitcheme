@@ -12,7 +12,7 @@ describe("GenerationProgress", () => {
     jest.useRealTimers()
   })
 
-  it("announces the estimated workflow and advances stages", () => {
+  it("announces the workflow and advances its fallback stages", () => {
     render(<GenerationProgress documentType="proposal" accent="primary" />)
 
     expect(screen.getByRole("region", { name: "Generating proposal" })).toBeInTheDocument()

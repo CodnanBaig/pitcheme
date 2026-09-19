@@ -15,6 +15,7 @@ jest.mock('@/lib/prisma', () => ({
       findUnique: jest.fn(),
       create: jest.fn(),
       upsert: jest.fn(),
+      updateMany: jest.fn(),
     },
     usage: {
       findUnique: jest.fn(),
@@ -40,6 +41,7 @@ import {
 const mockPrismaUserSubscriptionFindUnique = prisma.userSubscription.findUnique as jest.MockedFunction<typeof prisma.userSubscription.findUnique>
 const mockPrismaUserSubscriptionCreate = prisma.userSubscription.create as jest.MockedFunction<typeof prisma.userSubscription.create>
 const mockPrismaUserSubscriptionUpsert = prisma.userSubscription.upsert as jest.MockedFunction<typeof prisma.userSubscription.upsert>
+const mockPrismaUserSubscriptionUpdateMany = prisma.userSubscription.updateMany as jest.MockedFunction<typeof prisma.userSubscription.updateMany>
 const mockPrismaUsageFindUnique = prisma.usage.findUnique as jest.MockedFunction<typeof prisma.usage.findUnique>
 const mockPrismaUsageCreate = prisma.usage.create as jest.MockedFunction<typeof prisma.usage.create>
 const mockPrismaUsageUpdateMany = prisma.usage.updateMany as jest.MockedFunction<typeof prisma.usage.updateMany>
@@ -135,6 +137,21 @@ describe('Subscription Management', () => {
 
       await expect(getUserSubscription('user-123')).resolves.toMatchObject({ plan: 'FREE' })
       expect(mockPrismaUserSubscriptionFindUnique).toHaveBeenCalledTimes(2)
+    })
+
+    it('normalizes unknown persisted plan and status values to a safe state', async () => {
+      mockPrismaUserSubscriptionFindUnique.mockResolvedValue({
+        userId: 'user-123',
+        plan: 'LEGACY_PLAN',
+        status: 'unknown_status',
+        createdAt: new Date('2023-01-01'),
+        updatedAt: new Date('2023-01-01'),
+      } as never)
+
+      await expect(getUserSubscription('user-123')).resolves.toMatchObject({
+        plan: 'FREE',
+        status: 'past_due',
+      })
     })
   })
 
@@ -246,6 +263,39 @@ describe('Subscription Management', () => {
       expect(mockPrismaUserSubscriptionUpsert).not.toHaveBeenCalled()
     })
 
+    it('finds the configured plan when an unknown add-on item appears first', async () => {
+      await expect(syncStripeSubscription('user-123', {
+        ...subscription,
+        items: {
+          data: [
+            { price: { id: 'price_addon' } },
+            { price: { id: 'price_test_pro' } },
+          ],
+        },
+      } as never)).resolves.toBe('PRO')
+
+      expect(mockPrismaUserSubscriptionUpsert).toHaveBeenCalledWith(expect.objectContaining({
+        update: expect.objectContaining({
+          stripePriceId: 'price_test_pro',
+          plan: 'PRO',
+        }),
+      }))
+    })
+
+    it('does not grant access when multiple paid plans are attached', async () => {
+      await expect(syncStripeSubscription('user-123', {
+        ...subscription,
+        items: {
+          data: [
+            { price: { id: 'price_test_pro' } },
+            { price: { id: 'price_test_enterprise' } },
+          ],
+        },
+      } as never)).resolves.toBeNull()
+
+      expect(mockPrismaUserSubscriptionUpsert).not.toHaveBeenCalled()
+    })
+
     it('persists cancellation while leaving access inactive', async () => {
       await expect(syncStripeSubscription('user-123', {
         ...subscription,
@@ -260,6 +310,36 @@ describe('Subscription Management', () => {
           cancelAtPeriodEnd: true,
         }),
       }))
+    })
+
+    it('does not overwrite newer subscription state with a stale Stripe event', async () => {
+      const newerEvent = new Date('2026-02-01T00:00:00.000Z')
+      mockPrismaUserSubscriptionFindUnique.mockResolvedValue({
+        userId: 'user-123',
+        plan: 'PRO',
+        status: 'active',
+        stripeEventCreatedAt: newerEvent,
+        createdAt: new Date('2026-01-01'),
+        updatedAt: newerEvent,
+      } as never)
+      mockPrismaUserSubscriptionUpdateMany.mockResolvedValue({ count: 0 })
+
+      await expect(syncStripeSubscription('user-123', subscription as never, 1_735_689_600)).resolves.toBe('PRO')
+
+      expect(mockPrismaUserSubscriptionUpdateMany).toHaveBeenCalledWith({
+        where: {
+          userId: 'user-123',
+          OR: [
+            { stripeEventCreatedAt: null },
+            { stripeEventCreatedAt: { lte: new Date(1_735_689_600 * 1000) } },
+          ],
+        },
+        data: expect.objectContaining({
+          stripeEventCreatedAt: new Date(1_735_689_600 * 1000),
+          plan: 'PRO',
+        }),
+      })
+      expect(mockPrismaUserSubscriptionUpsert).not.toHaveBeenCalled()
     })
   })
 
@@ -465,7 +545,7 @@ describe('Subscription Management', () => {
       mockPrismaUserSubscriptionFindUnique.mockResolvedValue(freeSubscription as never)
       mockPrismaUsageUpdateMany.mockResolvedValue({ count: 1 })
 
-      await expect(reserveUsage('user-123', 'proposals')).resolves.toBe(true)
+      await expect(reserveUsage('user-123', 'proposals')).resolves.toEqual({ month: currentMonth })
 
       expect(mockPrismaUsageUpdateMany).toHaveBeenCalledWith({
         where: {
@@ -490,6 +570,21 @@ describe('Subscription Management', () => {
           pitchDecks: { gt: 0 },
         },
         data: { pitchDecks: { decrement: 1 } },
+      })
+    })
+
+    it('releases a reservation in the month it was created', async () => {
+      mockPrismaUsageUpdateMany.mockResolvedValue({ count: 1 })
+
+      await releaseUsage('user-123', 'proposals', '2026-01')
+
+      expect(mockPrismaUsageUpdateMany).toHaveBeenCalledWith({
+        where: {
+          userId: 'user-123',
+          month: '2026-01',
+          proposals: { gt: 0 },
+        },
+        data: { proposals: { decrement: 1 } },
       })
     })
   })

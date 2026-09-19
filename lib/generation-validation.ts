@@ -1,5 +1,6 @@
 export type GenerationBody = Record<string, unknown>
 export type GenerationKind = "proposal" | "pitch-deck"
+export type GenerationSafetyReason = "prompt-injection" | "unsafe-content"
 
 export type GenerationValidationResult =
   | { valid: true; data: GenerationBody }
@@ -10,20 +11,31 @@ function isRecord(value: unknown): value is GenerationBody {
 }
 
 function normalizeValue(value: unknown): unknown {
+  return normalizeValueAtDepth(value, 0)
+}
+
+const MAX_REQUEST_BYTES = 64 * 1024
+const MAX_TEXT_LENGTH = 10_000
+const MAX_ARRAY_ITEMS = 50
+const MAX_NESTING_DEPTH = 32
+
+function normalizeValueAtDepth(value: unknown, depth: number): unknown {
+  if (depth > MAX_NESTING_DEPTH) return value
+
   if (typeof value === "string") {
     return value.replace(/\r\n?/g, "\n").trim()
   }
 
   if (Array.isArray(value)) {
     return value
-      .map((item) => normalizeValue(item))
+      .map((item) => normalizeValueAtDepth(item, depth + 1))
       .filter((item) => !(typeof item === "string" && item.length === 0))
   }
 
   if (isRecord(value)) {
     return Object.fromEntries(
       Object.entries(value)
-        .map(([key, nestedValue]) => [key, normalizeValue(nestedValue)] as const)
+        .map(([key, nestedValue]) => [key, normalizeValueAtDepth(nestedValue, depth + 1)] as const)
         .filter(([, nestedValue]) => {
           if (typeof nestedValue === "string") return nestedValue.length > 0
           if (Array.isArray(nestedValue)) return nestedValue.length > 0
@@ -35,18 +47,20 @@ function normalizeValue(value: unknown): unknown {
   return value
 }
 
-const MAX_REQUEST_BYTES = 64 * 1024
-const MAX_TEXT_LENGTH = 10_000
-const MAX_ARRAY_ITEMS = 50
-
 function validateTextLimits(body: GenerationBody): string[] {
   const errors: string[] = []
 
-  if (JSON.stringify(body).length > MAX_REQUEST_BYTES) {
+  const serializedBody = JSON.stringify(body)
+  if (new TextEncoder().encode(serializedBody).byteLength > MAX_REQUEST_BYTES) {
     errors.push("request body must be 64 KB or smaller")
   }
 
-  const visit = (value: unknown, path: string) => {
+  const visit = (value: unknown, path: string, depth: number) => {
+    if (depth > MAX_NESTING_DEPTH) {
+      errors.push(`request body nesting must be ${MAX_NESTING_DEPTH} levels or fewer`)
+      return
+    }
+
     if (typeof value === "string") {
       if (value.length > MAX_TEXT_LENGTH) {
         errors.push(`${path} must be ${MAX_TEXT_LENGTH} characters or fewer`)
@@ -58,18 +72,18 @@ function validateTextLimits(body: GenerationBody): string[] {
       if (value.length > MAX_ARRAY_ITEMS) {
         errors.push(`${path} must contain ${MAX_ARRAY_ITEMS} items or fewer`)
       }
-      value.forEach((item, index) => visit(item, `${path}[${index}]`))
+      value.forEach((item, index) => visit(item, `${path}[${index}]`, depth + 1))
       return
     }
 
     if (isRecord(value)) {
       Object.entries(value).forEach(([key, nestedValue]) => {
-        visit(nestedValue, path ? `${path}.${key}` : key)
+        visit(nestedValue, path ? `${path}.${key}` : key, depth + 1)
       })
     }
   }
 
-  visit(body, "")
+  visit(body, "", 0)
 
   return errors
 }
@@ -142,13 +156,126 @@ const MINIMUM_BRIEF_LENGTHS: Record<GenerationKind, Record<string, number>> = {
 
 const PLACEHOLDER_BRIEFS = new Set(["n/a", "na", "none", "unknown", "tbd", "..."])
 
+/**
+ * These patterns intentionally cover only high-confidence attempts to make
+ * user-entered brief content behave like a system/developer instruction.
+ * Normal business language should remain valid; the model prompt separately
+ * labels all brief values as untrusted data.
+ */
+const PROMPT_INJECTION_PATTERNS = [
+  /\b(?:ignore|disregard|forget|override|bypass|do not follow|don't follow)\b[\s\S]{0,80}\b(?:all|any|the|these|previous|prior|above|earlier|system|developer|assistant)?\s*(?:instructions?|prompt|rules?|messages?)\b/i,
+  /\b(?:ignore|disregard|forget|override|bypass|do not follow|don't follow)\b[\s\S]{0,80}\b(?:instructions?|prompt|rules?|messages?)\b[\s\S]{0,24}\b(?:above|below|previous|prior|earlier)\b/i,
+  /\b(?:reveal|show|print|output|expose|leak|repeat|quote)\b[\s\S]{0,80}\b(?:the\s+)?(?:system|developer|hidden|secret)\s+(?:prompt|message|instructions?|rules?)\b/i,
+  /(?:<\s*(?:system|developer|assistant)\b|\[\s*(?:system|developer|assistant)\s*\]|\b(?:begin|end)\s+(?:system|developer)\s+(?:prompt|message)\b)/i,
+  /\b(?:jailbreak|prompt\s+injection)\b/i,
+]
+
+/**
+ * Block only explicit requests to create or deploy harmful tooling. The
+ * action-and-object shape avoids blocking ordinary security, compliance, or
+ * threat-intelligence briefs that describe a risk without asking the model to
+ * produce it.
+ */
+const UNSAFE_CONTENT_PATTERNS = [
+  /\b(?:create|write|build|deploy|execute|launch)\s+(?:a|an|the)?\s*(?:ransomware|keylogger|credential[- ]?stealer|phishing\s+kit|malware\s+payload|botnet|ddos\s+tool)\b/i,
+  /\b(?:steal|harvest|exfiltrate)\s+(?:passwords?|credentials?|session\s+tokens?|private\s+keys?|personal\s+data)\b/i,
+  /\b(?:bypass|evade)\s+(?:authentication|mfa|security\s+controls|fraud\s+detection)\b/i,
+]
+
+function looksLikePromptInjection(value: string): boolean {
+  const normalized = value
+    .replace(/[\u200B-\u200D\uFEFF]/g, "")
+    .replace(/\s+/g, " ")
+    .trim()
+
+  return PROMPT_INJECTION_PATTERNS.some((pattern) => pattern.test(normalized))
+}
+
+function looksLikeUnsafeContent(value: string): boolean {
+  const normalized = value
+    .replace(/[\u200B-\u200D\uFEFF]/g, "")
+    .replace(/\s+/g, " ")
+    .trim()
+
+  return UNSAFE_CONTENT_PATTERNS.some((pattern) => pattern.test(normalized))
+}
+
+function validatePromptSafety(body: GenerationBody): string[] {
+  const errors: string[] = []
+
+  const visit = (value: unknown, path: string, depth: number) => {
+    if (depth > MAX_NESTING_DEPTH) {
+      errors.push(`${path || "brief"} exceeds the maximum nesting depth`)
+      return
+    }
+
+    if (typeof value === "string") {
+      if (looksLikePromptInjection(value)) {
+        errors.push(`${path || "brief"} contains instructions that cannot be used as generation data`)
+      } else if (looksLikeUnsafeContent(value)) {
+        errors.push(`${path || "brief"} contains content that cannot be used for generation`)
+      }
+      return
+    }
+
+    if (Array.isArray(value)) {
+      value.forEach((item, index) => visit(item, `${path}[${index}]`, depth + 1))
+      return
+    }
+
+    if (isRecord(value)) {
+      Object.entries(value).forEach(([key, nestedValue]) => visit(nestedValue, path ? `${path}.${key}` : key, depth + 1))
+    }
+  }
+
+  visit(body, "", 0)
+  return errors
+}
+
+function findGenerationSafetyReason(body: GenerationBody): GenerationSafetyReason | null {
+  let reason: GenerationSafetyReason | null = null
+
+  const visit = (value: unknown, depth: number) => {
+    if (depth > MAX_NESTING_DEPTH) return
+    if (typeof value === "string") {
+      if (looksLikePromptInjection(value)) {
+        // Prompt injection is the more specific reason when a brief contains
+        // multiple blocked values; keep scanning until that precedence is set
+        // so containsPromptInjection remains an any-match check.
+        reason = "prompt-injection"
+      } else if (!reason && looksLikeUnsafeContent(value)) {
+        reason = "unsafe-content"
+      }
+      return
+    }
+    if (Array.isArray(value)) {
+      value.forEach((item) => visit(item, depth + 1))
+      return
+    }
+    if (isRecord(value)) Object.values(value).forEach((item) => visit(item, depth + 1))
+  }
+
+  visit(body, 0)
+  return reason
+}
+
+/** Detect a prompt-injection block without exposing the matched user text. */
+export function containsPromptInjection(body: GenerationBody): boolean {
+  return findGenerationSafetyReason(body) === "prompt-injection"
+}
+
+/** Detect the first high-confidence safety block without exposing user text. */
+export function getGenerationSafetyReason(body: GenerationBody): GenerationSafetyReason | null {
+  return findGenerationSafetyReason(body)
+}
+
 function meaningfulLength(value: string): number {
   return value.replace(/[^\p{L}\p{N}]+/gu, "").length
 }
 
 /** Reject input that is technically non-empty but cannot produce a useful brief. */
 export function validateGenerationBrief(body: GenerationBody, kind: GenerationKind): string[] {
-  return Object.entries(MINIMUM_BRIEF_LENGTHS[kind]).flatMap(([field, minimum]) => {
+  const errors = Object.entries(MINIMUM_BRIEF_LENGTHS[kind]).flatMap(([field, minimum]) => {
     const value = body[field]
     if (typeof value !== "string") return []
 
@@ -161,6 +288,8 @@ export function validateGenerationBrief(body: GenerationBody, kind: GenerationKi
     }
     return []
   })
+
+  return [...errors, ...validatePromptSafety(body)]
 }
 
 const MODEL_PREFERENCES = new Set(["primary", "fallback", "lightweight", "visual"])

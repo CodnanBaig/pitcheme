@@ -29,4 +29,18 @@ describe("authenticatedJsonFetch", () => {
         status: 400,
       }))
   })
+
+  it("falls back to the status message for oversized error responses", async () => {
+    mockFetch.mockResolvedValue(new Response(JSON.stringify({ error: "x".repeat(65 * 1024) }), {
+      status: 502,
+      statusText: "Bad Gateway",
+      headers: { "Content-Type": "application/json" },
+    }))
+
+    await expect(authenticatedJsonFetch("/api/generate/pitch-deck", { method: "POST" }))
+      .rejects.toEqual(expect.objectContaining<AuthApiError>({
+        message: "Request failed: Bad Gateway",
+        status: 502,
+      }))
+  })
 })

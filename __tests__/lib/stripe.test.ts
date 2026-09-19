@@ -1,6 +1,71 @@
-import { STRIPE_PLANS, PlanType } from '@/lib/stripe'
+import {
+  STRIPE_PLANS,
+  getPlanForPriceId,
+  getPriceIdForPlan,
+  getStripeConfigurationError,
+  getStripeReturnUrl,
+  isPaidPlan,
+  isStripeBillingEnabled,
+  normalizeStripeSubscriptionStatus,
+  type PlanType,
+} from '@/lib/stripe'
 
 describe('Stripe Configuration', () => {
+  const originalBillingFlag = process.env.STRIPE_BILLING_ENABLED
+  const originalSecret = process.env.STRIPE_SECRET_KEY
+  const originalWebhook = process.env.STRIPE_WEBHOOK_SECRET
+  const originalNextAuthUrl = process.env.NEXTAUTH_URL
+
+  afterEach(() => {
+    for (const [name, value] of [
+      ['STRIPE_BILLING_ENABLED', originalBillingFlag],
+      ['STRIPE_SECRET_KEY', originalSecret],
+      ['STRIPE_WEBHOOK_SECRET', originalWebhook],
+      ['NEXTAUTH_URL', originalNextAuthUrl],
+    ] as const) {
+      if (value === undefined) delete process.env[name]
+      else process.env[name] = value
+    }
+  })
+
+  describe('runtime helpers', () => {
+    it('recognizes paid plans and resolves configured plan IDs', () => {
+      expect(isPaidPlan('PRO')).toBe(true)
+      expect(isPaidPlan('ENTERPRISE')).toBe(true)
+      expect(isPaidPlan('FREE')).toBe(false)
+      expect(isPaidPlan('unknown')).toBe(false)
+      expect(getPriceIdForPlan('FREE')).toBeNull()
+      expect(getPlanForPriceId(null)).toBeNull()
+      expect(getPlanForPriceId('price_unknown')).toBeNull()
+    })
+
+    it('normalizes provider subscription statuses to the supported contract', () => {
+      expect(normalizeStripeSubscriptionStatus('active')).toBe('active')
+      expect(normalizeStripeSubscriptionStatus('trialing')).toBe('active')
+      expect(normalizeStripeSubscriptionStatus('canceled')).toBe('canceled')
+      expect(normalizeStripeSubscriptionStatus('incomplete')).toBe('incomplete')
+      expect(normalizeStripeSubscriptionStatus('past_due')).toBe('past_due')
+    })
+
+    it('fails closed until every billing prerequisite is configured', () => {
+      process.env.STRIPE_BILLING_ENABLED = 'false'
+      expect(isStripeBillingEnabled()).toBe(false)
+      expect(getStripeConfigurationError()).toBe('Stripe billing is disabled in this deployment')
+
+      process.env.STRIPE_BILLING_ENABLED = 'true'
+      delete process.env.STRIPE_WEBHOOK_SECRET
+      expect(getStripeConfigurationError()).toBe('Stripe webhook secret is not configured')
+    })
+
+    it('builds return URLs from the configured callback origin', () => {
+      process.env.NEXTAUTH_URL = 'https://pitchgenie.example.com'
+      expect(getStripeReturnUrl('/billing')).toBe('https://pitchgenie.example.com/billing')
+
+      delete process.env.NEXTAUTH_URL
+      expect(() => getStripeReturnUrl('/billing')).toThrow('NEXTAUTH_URL is not configured')
+    })
+  })
+
   describe('STRIPE_PLANS', () => {
     it('should have correct plan structure', () => {
       expect(STRIPE_PLANS).toEqual({

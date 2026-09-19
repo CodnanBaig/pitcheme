@@ -13,9 +13,11 @@ import { useToast } from '@/hooks/use-toast';
 import { FieldSelector } from '@/components/field-selector';
 import { DynamicFormGenerator } from '@/components/dynamic-form-generator';
 import { getFieldConfiguration } from '@/lib/field-config';
-import { authenticatedJsonFetch, AuthApiError } from '@/lib/auth-api';
+import { AuthApiError } from '@/lib/auth-api';
 import { useAuthSession } from '@/hooks/use-auth-session';
 import { GenerationProgress } from '@/components/generation-progress';
+import { generationStageIndex, streamGeneration } from '@/lib/generation-stream-client';
+import type { GenerationStage } from '@/lib/generation-progress';
 
 interface PitchDeckFormData {
   startupName: string;
@@ -48,6 +50,7 @@ export function EnhancedPitchDeckForm() {
     visualMode: true
   });
   const [isGenerating, setIsGenerating] = useState(false);
+  const [generationStage, setGenerationStage] = useState(0);
   const router = useRouter();
   const { toast } = useToast();
   const { refreshSession } = useAuthSession();
@@ -87,21 +90,21 @@ export function EnhancedPitchDeckForm() {
     }
 
     setIsGenerating(true);
+    setGenerationStage(0);
     setStep('generation');
 
     try {
-      console.log("Submitting pitch deck generation request...");
-
-      const result = await authenticatedJsonFetch("/api/generate/pitch-deck", {
-        method: "POST",
-        body: JSON.stringify(formData),
+      const result = await streamGeneration<{ id?: string }>("/api/generate/pitch-deck/stream", formData, {
+        onEvent: (event) => {
+          if (event.type === "stage" && event.stage) {
+            setGenerationStage(generationStageIndex(event.stage as GenerationStage))
+          }
+        },
       });
 
       if (!result?.id) {
         throw new Error("The generation service returned an incomplete response. Please try again.")
       }
-
-      console.log("Pitch deck generated successfully:", result);
 
       toast({
         title: "Success!",
@@ -110,8 +113,6 @@ export function EnhancedPitchDeckForm() {
 
       router.push(`/pitch-deck/${result.id}`);
     } catch (error) {
-      console.error("Error generating pitch deck:", error);
-
       if (error instanceof AuthApiError) {
         if (error.status === 401) {
           toast({
@@ -147,7 +148,7 @@ export function EnhancedPitchDeckForm() {
   if (step === 'generation') {
     return (
       <div className="max-w-2xl mx-auto text-center py-12">
-        <GenerationProgress documentType="pitch-deck" accent="accent" />
+        <GenerationProgress documentType="pitch-deck" accent="accent" activeStage={generationStage} />
       </div>
     );
   }

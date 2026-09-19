@@ -13,6 +13,22 @@ describe("structured generation output", () => {
     expect(result.content).toContain("- Discovery")
   })
 
+  it("normalizes bounded pricing rows into a Markdown table", () => {
+    const result = normalizeStructuredOutput(JSON.stringify({
+      title: "Commercial proposal",
+      executiveSummary: "A clear delivery plan.",
+      sections: [{ heading: "Scope", body: "A focused scope.", bullets: ["Discovery"] }],
+      pricing: [
+        { item: "Discovery", description: "Requirements and planning", amount: "$5,000" },
+        { item: "Delivery", description: "Implementation | QA", amount: "TBD" },
+      ],
+    }), "proposal")
+
+    expect(result.format).toBe("structured-json")
+    expect(result.content).toContain("| Item | Description | Amount |")
+    expect(result.content).toContain("| Delivery | Implementation \\| QA | TBD |")
+  })
+
   it("normalizes pitch slides and escapes generated text", () => {
     const result = normalizeStructuredOutput(JSON.stringify({
       slides: [{ title: "Problem", bullets: ["<script>alert(1)</script>"], visualSuggestion: "Market chart" }],
@@ -36,6 +52,18 @@ describe("structured generation output", () => {
     expect(result.candidate).toBe(true)
     expect(result.valid).toBe(false)
     expect(result.errors).toEqual(expect.arrayContaining(["executiveSummary is required", "sections must be an array"]))
+  })
+
+  it("rejects oversized or incomplete pricing rows", () => {
+    const result = inspectStructuredOutput(JSON.stringify({
+      title: "Pricing",
+      executiveSummary: "Summary",
+      sections: [{ heading: "Scope", body: "Body", bullets: [] }],
+      pricing: [{ item: "Missing amount" }],
+    }), "proposal")
+
+    expect(result.valid).toBe(false)
+    expect(result.errors).toContain("pricing[0].amount is required")
   })
 
   it("rejects empty pitch slides while leaving markdown outside the contract", () => {

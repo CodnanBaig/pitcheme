@@ -4,6 +4,10 @@ import { getStripeConfigurationError, getStripeReturnUrl, stripe } from "@/lib/s
 import { getUserSubscription } from "@/lib/subscription"
 import { enforceRateLimit } from "@/lib/rate-limit"
 import { getRequestId, jsonWithRequestId } from "@/lib/request-id"
+import { sendOperationalErrorTelemetry } from "@/lib/error-monitoring"
+
+export const runtime = "nodejs"
+export const maxDuration = 30
 
 function json(requestId: string, body: Record<string, unknown>, status = 200, headers?: Headers) {
   const init = jsonWithRequestId(requestId, { status })
@@ -62,6 +66,14 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     console.error("Stripe portal error", {
       requestId,
+      error: error instanceof Error ? error.name : "unknown",
+    })
+    void sendOperationalErrorTelemetry({
+      event: "stripe_failed",
+      requestId,
+      path: "/api/stripe/create-portal",
+      method: "POST",
+      category: "portal",
       error: error instanceof Error ? error.name : "unknown",
     })
     return json(requestId, { error: "Unable to create billing portal session", requestId }, 502)

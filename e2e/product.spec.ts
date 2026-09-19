@@ -39,6 +39,34 @@ test.describe("product journeys", () => {
 
     const proposalId = new URL(page.url()).pathname.split("/").pop()
     expect(proposalId).toMatch(/^[a-f0-9]{24}$/)
+
+    const shareResponse = await page.request.post(`/api/documents/${proposalId}/share`)
+    expect(shareResponse.status()).toBe(201)
+    const sharePayload = await shareResponse.json()
+    expect(sharePayload.sharePath).toMatch(/^\/share\/v2\./)
+    const sharedPage = await page.context().newPage()
+    try {
+      await sharedPage.goto(sharePayload.sharePath)
+      await expect(sharedPage.getByText("E2E Project Proposal", { exact: true })).toBeVisible()
+      await expect(sharedPage.getByText("This link is read-only and expires automatically. Contact the owner for an updated link.", { exact: true })).toBeVisible()
+    } finally {
+      await sharedPage.close()
+    }
+
+    const revokeResponse = await page.request.post(`/api/documents/${proposalId}/share`)
+    expect(revokeResponse.status()).toBe(201)
+    const revokePayload = await revokeResponse.json()
+    const revokeResult = await page.request.delete(`/api/documents/${proposalId}/share`)
+    expect(revokeResult.status()).toBe(200)
+    expect((await revokeResult.json()).revokedCount).toBeGreaterThanOrEqual(1)
+    const revokedPage = await page.context().newPage()
+    try {
+      const revokedResponse = await revokedPage.goto(revokePayload.sharePath)
+      expect(revokedResponse?.status()).toBe(404)
+    } finally {
+      await revokedPage.close()
+    }
+
     const exportResponse = await page.request.get(`/api/export/proposal/${proposalId}?format=pdf`)
     expect(exportResponse.status()).toBe(200)
     expect(exportResponse.headers()["content-type"]).toContain("application/pdf")
@@ -56,6 +84,27 @@ test.describe("product journeys", () => {
     await page.getByRole("button", { name: "Save changes" }).click()
     await expect(page.getByText("Saved", { exact: true })).toBeVisible()
     await expect(page.getByText("Version 1", { exact: true })).toBeVisible()
+
+    const editUrl = page.url()
+    const stalePage = await page.context().newPage()
+    await stalePage.goto(editUrl)
+    await expect(stalePage.locator("#project-title")).toHaveValue("E2E Project Revised")
+
+    await page.locator("#project-title").fill("E2E Project Collaborator")
+    await page.getByRole("button", { name: "Save changes" }).click()
+    await expect(page.getByText("Saved", { exact: true })).toBeVisible()
+    await expect(page.getByText("Version 2", { exact: true })).toBeVisible()
+
+    await stalePage.locator("#project-title").fill("E2E Project Stale")
+    await stalePage.getByRole("button", { name: "Save changes" }).click()
+    await expect(stalePage.getByText("Document changed since it was loaded. Reload before saving.", { exact: true })).toBeVisible()
+    await stalePage.close()
+
+    page.once("dialog", (dialog) => dialog.accept())
+    const revisedVersion = page.getByText("Version 2", { exact: true }).locator("..").locator("..")
+    await revisedVersion.getByRole("button", { name: "Restore" }).click()
+    await expect(page.getByText("Saved", { exact: true })).toBeVisible()
+    await expect(page.locator("#project-title")).toHaveValue("E2E Project Revised")
 
     await page.goto("/documents")
     await expect(page.getByText("E2E Project Revised", { exact: true })).toBeVisible()
@@ -100,6 +149,18 @@ test.describe("product journeys", () => {
     expect(exportResponse.status()).toBe(200)
     expect(exportResponse.headers()["content-type"]).toContain("application/pdf")
     expect((await exportResponse.body()).subarray(0, 4).toString()).toBe("%PDF")
+
+    await page.getByRole("link", { name: "Edit", exact: true }).click()
+    await expect(page).toHaveURL(/\/documents\/[a-f0-9]{24}\/edit$/)
+    await expect(page.getByLabel("Slide 1 title")).toHaveValue("Company overview")
+    await page.getByLabel("Slide 1 title").fill("Company overview revised")
+    await page.getByLabel("Slide 1 key points").fill("A clearer company narrative\nA measurable outcome")
+    await page.getByRole("button", { name: "Save changes" }).click()
+    await expect(page.getByText("Saved", { exact: true })).toBeVisible()
+
+    await page.getByRole("link", { name: "Back to document" }).click()
+    await expect(page).toHaveURL(/\/pitch-deck\/[a-f0-9]{24}$/)
+    await expect(page.getByText("Company overview revised", { exact: true })).toBeVisible()
   })
 
   test("does not expose another user's document", async ({ page, browser }) => {
@@ -168,5 +229,22 @@ test.describe("product journeys", () => {
 
     expect(blockedResponse.status()).toBe(403)
     expect((await blockedResponse.json()).error).toContain("Usage limit reached")
+  })
+
+  test("does not advertise unavailable paid billing", async ({ page }) => {
+    await page.goto("/")
+    await expect(page.getByText("Paid plan staged for the billing release", { exact: true }).first()).toBeVisible()
+    await expect(page.getByRole("link", { name: "Start Pro Trial" })).not.toBeVisible()
+    await expect(page.getByRole("link", { name: "Contact Sales" })).not.toBeVisible()
+
+    await registerAndSignIn(page, "BillingStaged")
+
+    await expect(page.getByText("Paid plans staged", { exact: true })).toBeVisible()
+    await expect(page.getByRole("link", { name: "View plan details" })).toBeVisible()
+    await expect(page.getByText("Upgrade to Pro", { exact: true })).not.toBeVisible()
+
+    await page.goto("/billing")
+    await expect(page.getByText("Paid billing is staged in this deployment.", { exact: false })).toBeVisible()
+    await expect(page.getByText("Upgrade to Pro for unlimited document generation and premium features.", { exact: true })).not.toBeVisible()
   })
 })

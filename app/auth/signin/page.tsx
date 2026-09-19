@@ -33,7 +33,6 @@ function SignInContent() {
   useEffect(() => {
     // Only redirect if we have a session and we're not in the middle of signing in
     if (session && status === "authenticated" && signInAttempted) {
-      console.log("Session detected after sign-in, redirecting to dashboard...")
       // Clear any pending timeout
       if (timeoutRef.current) {
         clearTimeout(timeoutRef.current)
@@ -76,12 +75,10 @@ function SignInContent() {
         setIsLoading(false)
       } else if (result?.ok) {
         // Sign in successful - set flag and wait for session update
-        console.log("Sign in successful, waiting for session update...")
         setSignInAttempted(true)
 
         // Safety timeout in case session doesn't update
         timeoutRef.current = setTimeout(() => {
-          console.log("Session update timeout, resetting loading state")
           setIsLoading(false)
           setSignInAttempted(false)
           setError("Sign in successful but session not updated. Please try refreshing the page.")
@@ -89,7 +86,6 @@ function SignInContent() {
         }, 10000) // 10 second timeout
       }
     } catch (err) {
-      console.error("Sign in error:", err)
       setError("An error occurred during sign in")
       setIsLoading(false)
       if (timeoutRef.current) {

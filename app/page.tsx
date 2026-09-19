@@ -5,9 +5,21 @@ import { CheckCircle, Zap, FileText, PresentationIcon as PresentationChart, Cloc
 import { AuthButton } from "@/components/auth-button"
 import { SmartCTAButton } from "@/components/smart-cta-button"
 import { MobileNav } from "@/components/mobile-nav"
+import { isStripeBillingEnabled, STRIPE_PLANS } from "@/lib/stripe"
 import Link from "next/link"
 
+export const dynamic = "force-dynamic"
+
 export default function LandingPage() {
+  const billingEnabled = isStripeBillingEnabled()
+  const brandLabEnabled = process.env.NODE_ENV !== "production" || process.env.BRAND_LAB_ENABLED === "true"
+  const currentYear = new Date().getFullYear()
+  const plans = [
+    { key: "FREE" as const, featured: false },
+    { key: "PRO" as const, featured: true },
+    { key: "ENTERPRISE" as const, featured: false },
+  ]
+
   return (
     <div className="min-h-screen bg-background">
       {/* Header */}
@@ -30,9 +42,11 @@ export default function LandingPage() {
               <Link href="#testimonials" className="text-muted-foreground hover:text-foreground transition-colors">
                 Workflow
               </Link>
-              <Link href="/brand-lab" className="text-muted-foreground hover:text-foreground transition-colors">
-                Visual directions
-              </Link>
+              {brandLabEnabled && (
+                <Link href="/brand-lab" className="text-muted-foreground hover:text-foreground transition-colors">
+                  Visual directions
+                </Link>
+              )}
             </nav>
             <div className="flex items-center gap-2">
               <MobileNav
@@ -40,7 +54,7 @@ export default function LandingPage() {
                   { href: "#features", label: "Features" },
                   { href: "#pricing", label: "Pricing" },
                   { href: "#testimonials", label: "Workflow" },
-                  { href: "/brand-lab", label: "Visual directions" },
+                  ...(brandLabEnabled ? [{ href: "/brand-lab", label: "Visual directions" }] : []),
                 ]}
               />
               <AuthButton />
@@ -82,7 +96,7 @@ export default function LandingPage() {
               </div>
               <div className="flex items-center gap-2">
                 <CheckCircle className="w-4 h-4 text-primary" />
-                Ready in 2 minutes
+                Structured workflow
               </div>
               <div className="flex items-center gap-2">
                 <CheckCircle className="w-4 h-4 text-primary" />
@@ -132,9 +146,9 @@ export default function LandingPage() {
                 <div className="w-12 h-12 bg-primary/10 rounded-lg flex items-center justify-center mb-4">
                   <Clock className="w-6 h-6 text-primary" />
                 </div>
-                <CardTitle>Lightning Fast</CardTitle>
+                <CardTitle>Efficient workflow</CardTitle>
                 <CardDescription>
-                  Generate complete documents in under 2 minutes. No more spending days on proposals
+                  Generate complete documents from a structured brief. No more spending days on proposals
                 </CardDescription>
               </CardHeader>
             </Card>
@@ -180,105 +194,49 @@ export default function LandingPage() {
         <div className="container mx-auto px-4 sm:px-6 lg:px-8">
           <div className="max-w-3xl mx-auto text-center mb-16">
             <h2 className="text-3xl lg:text-4xl font-bold text-foreground mb-4">Simple, transparent pricing</h2>
-            <p className="text-lg text-muted-foreground">Choose the plan that fits your business needs</p>
+            <p className="text-lg text-muted-foreground">
+              {billingEnabled
+                ? "Choose the plan that fits your business needs"
+                : "Start with the free workspace; paid plans are staged for the billing release."}
+            </p>
           </div>
           <div className="grid md:grid-cols-3 gap-8 max-w-5xl mx-auto">
-            {/* Free Plan */}
-            <Card className="border-border bg-card">
-              <CardHeader className="text-center pb-8">
-                <CardTitle className="text-2xl">Free</CardTitle>
-                <div className="text-4xl font-bold text-foreground mt-4">$0</div>
-                <CardDescription className="mt-2">Perfect for trying out PitchGenie</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="flex items-center gap-3">
-                  <CheckCircle className="w-5 h-5 text-primary" />
-                  <span>1 proposal per month</span>
-                </div>
-                <div className="flex items-center gap-3">
-                  <CheckCircle className="w-5 h-5 text-primary" />
-                  <span>1 pitch deck per month</span>
-                </div>
-                <div className="flex items-center gap-3">
-                  <CheckCircle className="w-5 h-5 text-primary" />
-                  <span>Watermarked exports</span>
-                </div>
-                <div className="flex items-center gap-3">
-                  <CheckCircle className="w-5 h-5 text-primary" />
-                  <span>Basic templates</span>
-                </div>
-                <Button className="w-full mt-8 bg-transparent" variant="outline" asChild>
-                  <Link href="/auth/signup">Get Started Free</Link>
-                </Button>
-              </CardContent>
-            </Card>
-
-            {/* Pro Plan */}
-            <Card className="border-primary bg-card relative">
-              <div className="absolute -top-4 left-1/2 transform -translate-x-1/2">
-                <Badge className="bg-primary text-primary-foreground">Most Popular</Badge>
-              </div>
-              <CardHeader className="text-center pb-8">
-                <CardTitle className="text-2xl">Pro</CardTitle>
-                <div className="text-4xl font-bold text-foreground mt-4">$19</div>
-                <CardDescription className="mt-2">per month</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="flex items-center gap-3">
-                  <CheckCircle className="w-5 h-5 text-primary" />
-                  <span>Unlimited proposals</span>
-                </div>
-                <div className="flex items-center gap-3">
-                  <CheckCircle className="w-5 h-5 text-primary" />
-                  <span>Unlimited pitch decks</span>
-                </div>
-                <div className="flex items-center gap-3">
-                  <CheckCircle className="w-5 h-5 text-primary" />
-                  <span>Premium templates</span>
-                </div>
-                <div className="flex items-center gap-3">
-                  <CheckCircle className="w-5 h-5 text-primary" />
-                  <span>Priority support</span>
-                </div>
-                <Button className="w-full mt-8 bg-primary hover:bg-primary/90" asChild>
-                  <Link href="/auth/signup">Start Pro Trial</Link>
-                </Button>
-              </CardContent>
-            </Card>
-
-            {/* Business Plan */}
-            <Card className="border-border bg-card">
-              <CardHeader className="text-center pb-8">
-                <CardTitle className="text-2xl">Enterprise</CardTitle>
-                <div className="text-4xl font-bold text-foreground mt-4">$49</div>
-                <CardDescription className="mt-2">per month</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="flex items-center gap-3">
-                  <CheckCircle className="w-5 h-5 text-primary" />
-                  <span>Everything in Pro</span>
-                </div>
-                <div className="flex items-center gap-3">
-                  <CheckCircle className="w-5 h-5 text-primary" />
-                  <span>Custom branding</span>
-                </div>
-                <div className="flex items-center gap-3">
-                  <CheckCircle className="w-5 h-5 text-primary" />
-                  <span>Team collaboration</span>
-                </div>
-                <div className="flex items-center gap-3">
-                  <CheckCircle className="w-5 h-5 text-primary" />
-                  <span>Advanced analytics</span>
-                </div>
-                <div className="flex items-center gap-3">
-                  <CheckCircle className="w-5 h-5 text-primary" />
-                  <span>Dedicated support</span>
-                </div>
-                <Button className="w-full mt-8 bg-transparent" variant="outline" asChild>
-                  <Link href="/auth/signup">Contact Sales</Link>
-                </Button>
-              </CardContent>
-            </Card>
+            {plans.map(({ key, featured }) => {
+              const plan = STRIPE_PLANS[key]
+              return (
+                <Card key={key} className={`${featured ? "border-primary" : "border-border"} bg-card relative`}>
+                  {featured && (
+                    <div className="absolute -top-4 left-1/2 -translate-x-1/2 transform">
+                      <Badge className="bg-primary text-primary-foreground">Most Popular</Badge>
+                    </div>
+                  )}
+                  <CardHeader className="text-center pb-8">
+                    <CardTitle className="text-2xl">{plan.name}</CardTitle>
+                    <div className="text-4xl font-bold text-foreground mt-4">${plan.price}</div>
+                    <CardDescription className="mt-2">
+                      {key === "FREE"
+                        ? "Perfect for trying out PitchGenie"
+                        : billingEnabled
+                          ? "Available in the configured billing environment"
+                          : "Paid plan staged for the billing release"}
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    {plan.features.map((feature) => (
+                      <div key={feature} className="flex items-center gap-3">
+                        <CheckCircle className="w-5 h-5 text-primary" />
+                        <span>{feature}</span>
+                      </div>
+                    ))}
+                    <Button className="w-full mt-8" variant={featured ? "default" : "outline"} asChild>
+                      <Link href={key === "FREE" ? "/auth/signup" : "/pricing"}>
+                        {key === "FREE" ? "Get Started Free" : billingEnabled ? `Choose ${plan.name}` : "View staged plan"}
+                      </Link>
+                    </Button>
+                  </CardContent>
+                </Card>
+              )
+            })}
           </div>
         </div>
       </section>
@@ -348,9 +306,11 @@ export default function LandingPage() {
               >
                 Start Creating Free
               </SmartCTAButton>
-              <Button variant="outline" size="lg" className="px-8 py-3 bg-transparent" asChild>
-                <Link href="/brand-lab/enterprise">View enterprise direction</Link>
-              </Button>
+              {brandLabEnabled && (
+                <Button variant="outline" size="lg" className="px-8 py-3 bg-transparent" asChild>
+                  <Link href="/brand-lab/enterprise">View enterprise direction</Link>
+                </Button>
+              )}
             </div>
           </div>
         </div>
@@ -359,7 +319,7 @@ export default function LandingPage() {
       {/* Footer */}
       <footer className="border-t border-border bg-secondary/30">
         <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-12">
-          <div className="grid md:grid-cols-4 gap-8">
+          <div className="grid gap-8 md:grid-cols-3">
             <div>
               <div className="flex items-center gap-2 mb-4">
                 <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center">
@@ -375,75 +335,79 @@ export default function LandingPage() {
               <h3 className="font-semibold text-foreground mb-4">Product</h3>
               <ul className="space-y-2 text-muted-foreground">
                 <li>
-                  <Link href="#" className="hover:text-foreground transition-colors">
+                  <Link href="#features" className="hover:text-foreground transition-colors">
                     Features
                   </Link>
                 </li>
                 <li>
-                  <Link href="#" className="hover:text-foreground transition-colors">
+                  <Link href="#pricing" className="hover:text-foreground transition-colors">
                     Pricing
                   </Link>
                 </li>
                 <li>
-                  <Link href="#" className="hover:text-foreground transition-colors">
-                    Templates
+                  <Link href="/generate/proposal" className="hover:text-foreground transition-colors">
+                    Proposal generator
                   </Link>
                 </li>
                 <li>
-                  <Link href="#" className="hover:text-foreground transition-colors">
-                    API
-                  </Link>
-                </li>
-              </ul>
-            </div>
-            <div>
-              <h3 className="font-semibold text-foreground mb-4">Company</h3>
-              <ul className="space-y-2 text-muted-foreground">
-                <li>
-                  <Link href="#" className="hover:text-foreground transition-colors">
-                    About
-                  </Link>
-                </li>
-                <li>
-                  <Link href="#" className="hover:text-foreground transition-colors">
-                    Blog
-                  </Link>
-                </li>
-                <li>
-                  <Link href="#" className="hover:text-foreground transition-colors">
-                    Careers
-                  </Link>
-                </li>
-                <li>
-                  <Link href="#" className="hover:text-foreground transition-colors">
-                    Contact
+                  <Link href="/generate/pitch-deck" className="hover:text-foreground transition-colors">
+                    Pitch deck generator
                   </Link>
                 </li>
               </ul>
             </div>
             <div>
-              <h3 className="font-semibold text-foreground mb-4">Legal</h3>
+              <h3 className="font-semibold text-foreground mb-4">Workspace</h3>
               <ul className="space-y-2 text-muted-foreground">
                 <li>
-                  <Link href="#" className="hover:text-foreground transition-colors">
-                    Privacy Policy
+                  <Link href="/dashboard" className="hover:text-foreground transition-colors">
+                    Dashboard
                   </Link>
                 </li>
                 <li>
-                  <Link href="#" className="hover:text-foreground transition-colors">
-                    Terms of Service
+                  <Link href="/auth/signin" className="hover:text-foreground transition-colors">
+                    Sign in
                   </Link>
                 </li>
                 <li>
-                  <Link href="#" className="hover:text-foreground transition-colors">
-                    Cookie Policy
+                  <Link href="/auth/signup" className="hover:text-foreground transition-colors">
+                    Create account
+                  </Link>
+                </li>
+                {brandLabEnabled && (
+                  <li>
+                    <Link href="/brand-lab" className="hover:text-foreground transition-colors">
+                      Visual directions
+                    </Link>
+                  </li>
+                )}
+              </ul>
+            </div>
+            <div>
+              <h3 className="font-semibold text-foreground mb-4">Release</h3>
+              <ul className="space-y-2 text-muted-foreground">
+                <li>
+                  <Link href="/pricing" className="hover:text-foreground transition-colors">
+                    Billing state
+                  </Link>
+                </li>
+                {brandLabEnabled && (
+                  <li>
+                    <Link href="/brand-lab/enterprise" className="hover:text-foreground transition-colors">
+                      Enterprise direction
+                    </Link>
+                  </li>
+                )}
+                <li>
+                  <Link href="/auth/signup" className="hover:text-foreground transition-colors">
+                    Start a workspace
                   </Link>
                 </li>
               </ul>
             </div>
           </div>
           <div className="border-t border-border mt-8 pt-8 text-center text-muted-foreground">
-            <p>&copy; 2024 PitchGenie. All rights reserved.</p>
+            <p>&copy; {currentYear} PitchGenie. All rights reserved.</p>
           </div>
         </div>
       </footer>

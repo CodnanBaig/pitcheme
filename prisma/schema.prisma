@@ -50,6 +50,8 @@ model User {
   usage         Usage[]
   documents     Document[]
   documentVersions DocumentVersion[]
+  documentShares DocumentShare[]
+  productEvents  ProductEvent[]
   generations   Generation[]
 }
 
@@ -73,10 +75,26 @@ model UserSubscription {
   currentPeriodStart   DateTime?
   currentPeriodEnd     DateTime?
   cancelAtPeriodEnd    Boolean?
+  stripeEventCreatedAt DateTime?
   createdAt            DateTime @default(now())
   updatedAt            DateTime @updatedAt
 
   user User @relation(fields: [userId], references: [id])
+
+  @@index([stripeCustomerId])
+  @@index([stripeSubscriptionId])
+}
+
+model StripeWebhookEvent {
+  id           String    @id @default(auto()) @map("_id") @db.ObjectId
+  eventId      String    @unique
+  eventType    String
+  status       String
+  receivedAt   DateTime  @default(now())
+  processedAt  DateTime?
+  failureCode  String?
+
+  @@index([status, receivedAt])
 }
 
 model Usage {
@@ -105,6 +123,11 @@ model Document {
   user User @relation(fields: [userId], references: [id])
   versions DocumentVersion[]
   generations Generation[]
+  shares DocumentShare[]
+  productEvents ProductEvent[]
+
+  @@index([userId, createdAt])
+  @@index([userId, type, createdAt])
 }
 
 model DocumentVersion {
@@ -125,6 +148,42 @@ model DocumentVersion {
 
   @@unique([documentId, version])
   @@index([userId, createdAt])
+}
+
+model DocumentShare {
+  id             String   @id @default(auto()) @map("_id") @db.ObjectId
+  tokenHash      String   @unique
+  documentId     String   @db.ObjectId
+  userId         String   @db.ObjectId
+  expiresAt      DateTime
+  createdAt      DateTime @default(now())
+  revokedAt      DateTime?
+  accessCount    Int      @default(0)
+  lastAccessedAt DateTime?
+
+  document Document @relation(fields: [documentId], references: [id])
+  user     User     @relation(fields: [userId], references: [id])
+
+  @@index([documentId, createdAt])
+  @@index([userId, createdAt])
+  @@index([expiresAt])
+}
+
+model ProductEvent {
+  id         String   @id @default(auto()) @map("_id") @db.ObjectId
+  name       String
+  userId     String   @db.ObjectId
+  documentId String?  @db.ObjectId
+  requestId  String?
+  metadata   String?
+  createdAt  DateTime @default(now())
+
+  user     User      @relation(fields: [userId], references: [id])
+  document Document? @relation(fields: [documentId], references: [id])
+
+  @@index([name, createdAt])
+  @@index([userId, createdAt])
+  @@index([documentId, createdAt])
 }
 
 model Generation {

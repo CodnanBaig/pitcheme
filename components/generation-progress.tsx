@@ -6,6 +6,7 @@ import { CheckCircle2, Loader2 } from "lucide-react"
 type GenerationProgressProps = {
   documentType: "proposal" | "pitch-deck"
   accent: "primary" | "accent"
+  activeStage?: number
 }
 
 const stages = [
@@ -15,8 +16,8 @@ const stages = [
   { label: "Saving document", detail: "Finishing your workspace copy" },
 ] as const
 
-export function GenerationProgress({ documentType, accent }: GenerationProgressProps) {
-  const [activeStage, setActiveStage] = useState(0)
+export function GenerationProgress({ documentType, accent, activeStage: controlledStage }: GenerationProgressProps) {
+  const [timedStage, setTimedStage] = useState(0)
   const theme = accent === "accent"
     ? { text: "text-accent", background: "bg-accent", tint: "bg-accent/10" }
     : { text: "text-primary", background: "bg-primary", tint: "bg-primary/10" }
@@ -24,11 +25,13 @@ export function GenerationProgress({ documentType, accent }: GenerationProgressP
 
   useEffect(() => {
     const timer = window.setInterval(() => {
-      setActiveStage((current) => Math.min(current + 1, stages.length - 1))
+      setTimedStage((current) => Math.min(current + 1, stages.length - 1))
     }, 4_000)
 
     return () => window.clearInterval(timer)
   }, [])
+
+  const activeStage = Math.max(0, Math.min(controlledStage ?? timedStage, stages.length - 1))
 
   return (
     <section
@@ -44,7 +47,7 @@ export function GenerationProgress({ documentType, accent }: GenerationProgressP
           <p className={`text-xs font-semibold uppercase tracking-[0.18em] ${theme.text}`}>In progress</p>
           <h3 className="mt-1 text-xl font-semibold text-foreground">Creating your {noun}</h3>
           <p className="mt-1 text-sm text-muted-foreground">
-            This is an estimated workflow indicator while the server completes the request.
+            Live stages update while the server validates and saves your document.
           </p>
         </div>
       </div>

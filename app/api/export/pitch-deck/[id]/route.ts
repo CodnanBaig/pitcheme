@@ -7,10 +7,13 @@ import { escapeHtml, sanitizeGeneratedHtml } from "@/lib/sanitize-html"
 import { enforceRateLimit } from "@/lib/rate-limit"
 import { isMongoObjectId } from "@/lib/mongo-id"
 import { getRequestId, jsonWithRequestId } from "@/lib/request-id"
+import { recordProductEvent } from "@/lib/product-events"
+import { sendOperationalErrorTelemetry } from "@/lib/error-monitoring"
+import { acquireExportConcurrencySlot } from "@/lib/export-concurrency"
+import { EXPORT_LAUNCH_TIMEOUT_MS, EXPORT_RENDER_TIMEOUT_MS, throwIfExportAborted, withExportTimeout } from "@/lib/export-timeout"
 
-interface RouteParams {
-  params: { id: string }
-}
+export const runtime = "nodejs"
+export const maxDuration = 60
 
 // Function to get pitch deck data from database
 async function getPitchDeck(id: string, userId: string) {
@@ -44,12 +47,21 @@ export async function GET(
   const json = (body: unknown, init: ResponseInit = {}) =>
     NextResponse.json(body, jsonWithRequestId(requestId, init))
   let browser: Awaited<ReturnType<typeof chromium.launch>> | null = null
+  let exportUserId: string | undefined
+  let exportDocumentId: string | undefined
+  let releaseExportSlot: (() => void) | null = null
 
   try {
     const session = await auth()
 
     if (!session || !session.user || !session.user.id) {
       return json({ error: "Unauthorized", requestId }, { status: 401 })
+    }
+    exportUserId = session.user.id
+
+    const requestedFormat = new URL(request.url).searchParams.get("format")
+    if (requestedFormat && requestedFormat !== "pdf") {
+      return json({ error: "Invalid format", requestId }, { status: 400 })
     }
 
     if (!isMongoObjectId(params.id)) {
@@ -60,7 +72,7 @@ export async function GET(
       const rateLimit = await enforceRateLimit(`pitch-deck-export:${session.user.id}`, { limit: 20, windowMs: 60_000 })
       if (!rateLimit.allowed) {
         return json(
-          { error: "Too many export requests. Please try again shortly." },
+          { error: "Too many export requests. Please try again shortly.", requestId },
           { status: 429, headers: { "Retry-After": String(Math.ceil((rateLimit.resetAt - Date.now()) / 1000)) } },
         )
       }
@@ -71,10 +83,20 @@ export async function GET(
     if (!pitchDeck) {
       return json({ error: "Pitch deck not found", requestId }, { status: 404 })
     }
+    exportDocumentId = pitchDeck.id
+    releaseExportSlot = acquireExportConcurrencySlot(session.user.id)
+    if (!releaseExportSlot) {
+      return json(
+        { error: "Export capacity is currently busy. Please try again shortly.", requestId },
+        { status: 429, headers: { "Retry-After": "5" } },
+      )
+    }
+    throwIfExportAborted(request.signal)
 
     // Generate PDF with slide-like formatting using deployment Chromium.
     const launchOptions: Parameters<typeof chromium.launch>[0] = {
       headless: true,
+      timeout: EXPORT_LAUNCH_TIMEOUT_MS,
       args: ["--no-sandbox", "--disable-setuid-sandbox"],
     }
     const executablePath = process.env.CHROMIUM_EXECUTABLE_PATH?.trim() || process.env.PUPPETEER_EXECUTABLE_PATH?.trim()
@@ -186,6 +208,17 @@ export async function GET(
             margin-bottom: 10px;
             color: #f8f9fa;
           }
+
+          .pitch-deck-slides .slide-grid {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 28px;
+            margin-top: 26px;
+          }
+
+          .pitch-deck-slides .slide-column {
+            min-width: 0;
+          }
           
           .pitch-deck-slides ul {
             font-size: 18px;
@@ -216,6 +249,12 @@ export async function GET(
             padding: 15px;
             border-left: 3px solid #18A6A6;
             margin-top: 30px;
+          }
+
+          @media print {
+            .pitch-deck-slides .slide-grid {
+              grid-template-columns: repeat(2, minmax(0, 1fr));
+            }
           }
           
           /* Title slide styling */
@@ -264,9 +303,10 @@ export async function GET(
       </html>
     `
 
-    await page.setContent(htmlContent, { waitUntil: "load" })
+    await page.setContent(htmlContent, { waitUntil: "load", timeout: EXPORT_RENDER_TIMEOUT_MS, signal: request.signal })
 
-    const pdf = await page.pdf({
+    throwIfExportAborted(request.signal)
+    const pdf = await withExportTimeout(page.pdf({
       format: "A4",
       landscape: true,
       printBackground: true,
@@ -279,20 +319,53 @@ export async function GET(
         bottom: "0mm",
         left: "0mm",
       },
+    }))
+    throwIfExportAborted(request.signal)
+
+    await recordProductEvent({
+      name: "export_used",
+      userId: session.user.id,
+      documentId: pitchDeck.id,
+      requestId,
+      metadata: { format: "pdf", type: "pitch-deck" },
     })
 
     return new NextResponse(new Uint8Array(pdf), {
       headers: {
         "Content-Type": "application/pdf",
         "Content-Disposition": `attachment; filename="${safeFilename(pitchDeck.startupName, "pitch-deck")}_pitch_deck.pdf"`,
+        "Cache-Control": "no-store",
         "X-Request-ID": requestId,
       },
     })
   } catch (error) {
-    console.error("Error exporting pitch deck", {
-      requestId,
-      error: error instanceof Error ? error.name : "unknown",
-    })
+    const cancelled = request.signal.aborted || (error instanceof Error && error.name === "AbortError")
+    if (exportUserId) {
+      await recordProductEvent({
+        name: "export_failed",
+        userId: exportUserId,
+        ...(exportDocumentId ? { documentId: exportDocumentId } : {}),
+        requestId,
+        metadata: { format: "pdf", type: "pitch-deck" },
+      })
+    }
+    if (!cancelled) {
+      console.error("Error exporting pitch deck", {
+        requestId,
+        error: error instanceof Error ? error.name : "unknown",
+      })
+      void sendOperationalErrorTelemetry({
+        event: "export_failed",
+        requestId,
+        path: "/api/export/pitch-deck/:id",
+        method: "GET",
+        category: "export",
+        error: error instanceof Error ? error.name : "unknown",
+      })
+    }
+    if (cancelled) {
+      return json({ error: "Export request cancelled", requestId }, { status: 499 })
+    }
     return json({ error: "Failed to export pitch deck", requestId }, { status: 500 })
   } finally {
     if (browser) {
@@ -305,6 +378,7 @@ export async function GET(
         })
       }
     }
+    releaseExportSlot?.()
   }
 }
 

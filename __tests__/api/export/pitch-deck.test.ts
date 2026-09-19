@@ -77,6 +77,7 @@ describe('/api/export/pitch-deck/[id]', () => {
     expect(response.status).toBe(200)
     expect(response.headers.get('Content-Type')).toBe('application/pdf')
     expect(response.headers.get('Content-Disposition')).toContain('TechCorp_pitch_deck.pdf')
+    expect(response.headers.get('Cache-Control')).toBe('no-store')
     expect(response.headers.get('X-Request-ID')).toEqual(expect.any(String))
 
     expect(mockAuth).toHaveBeenCalled()
@@ -89,7 +90,8 @@ describe('/api/export/pitch-deck/[id]', () => {
     })
     expect(mockChromium.launch).toHaveBeenCalledWith({
       headless: true,
-      args: ['--no-sandbox', '--disable-setuid-sandbox']
+      args: ['--no-sandbox', '--disable-setuid-sandbox'],
+      timeout: 10_000,
     })
     expect(mockPage.setContent).toHaveBeenCalled()
     expect(mockPage.pdf).toHaveBeenCalledWith(expect.objectContaining({
@@ -107,6 +109,39 @@ describe('/api/export/pitch-deck/[id]', () => {
       }
     }))
     expect(mockBrowser.close).toHaveBeenCalled()
+  })
+
+  it('returns a bounded cancellation response before launching Chromium', async () => {
+    mockAuth.mockResolvedValue(validSession as any)
+    mockPrismaDocumentFindFirst.mockResolvedValue(mockPitchDeck as any)
+    const controller = new AbortController()
+    controller.abort()
+
+    const response = await GET(
+      new NextRequest('http://localhost:3000/api/export/pitch-deck/507f1f77bcf86cd799439012', {
+        method: 'GET',
+        signal: controller.signal,
+      }),
+      { params: Promise.resolve({ id: '507f1f77bcf86cd799439012' }) },
+    )
+
+    expect(response.status).toBe(499)
+    expect((await response.json()).error).toBe('Export request cancelled')
+    expect(mockChromium.launch).not.toHaveBeenCalled()
+  })
+
+  it('rejects unsupported formats before querying Prisma or launching Chromium', async () => {
+    mockAuth.mockResolvedValue(validSession as any)
+
+    const response = await GET(
+      new NextRequest('http://localhost:3000/api/export/pitch-deck/507f1f77bcf86cd799439012?format=docx'),
+      { params: Promise.resolve({ id: '507f1f77bcf86cd799439012' }) },
+    )
+
+    expect(response.status).toBe(400)
+    expect((await response.json()).error).toBe('Invalid format')
+    expect(mockPrismaDocumentFindFirst).not.toHaveBeenCalled()
+    expect(mockChromium.launch).not.toHaveBeenCalled()
   })
 
   it('should return 401 if user is not authenticated', async () => {

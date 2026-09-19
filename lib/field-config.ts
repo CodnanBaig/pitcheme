@@ -1,15 +1,5 @@
-import { 
-  Code, 
-  Heart, 
-  DollarSign, 
-  Megaphone, 
-  Users, 
-  GraduationCap, 
-  Building, 
-  Scale, 
-  Palette, 
-  Cog 
-} from 'lucide-react';
+import { Code, Heart } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
 
 export interface FormFieldConfig {
   id: string;
@@ -39,7 +29,7 @@ export interface FieldConfiguration {
   id: string;
   name: string;
   description: string;
-  icon: any;
+  icon: LucideIcon;
   color: string;
   workflows: {
     proposal: ProposalWorkflow;

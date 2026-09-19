@@ -12,6 +12,7 @@ import {
   Search,
   Trash2,
   Zap,
+  AlertCircle,
 } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button, buttonVariants } from "@/components/ui/button"
@@ -35,6 +36,7 @@ type DocumentsWorkspaceProps = {
   user: { name?: string | null; email?: string | null }
   hasMore?: boolean
   planName?: string
+  loadError?: boolean
 }
 
 function detailPath(document: DocumentListItem) {
@@ -52,7 +54,7 @@ function normalizeDocument(value: DocumentListItem & { createdAt: string | Date 
   }
 }
 
-export function DocumentsWorkspace({ documents: initialDocuments, user, hasMore: initialHasMore = false, planName = "Free" }: DocumentsWorkspaceProps) {
+export function DocumentsWorkspace({ documents: initialDocuments, hasMore: initialHasMore = false, planName = "Free", loadError = false }: DocumentsWorkspaceProps) {
   const [documents, setDocuments] = useState(initialDocuments)
   const [hasMore, setHasMore] = useState(initialHasMore)
   const [nextPage, setNextPage] = useState(initialHasMore ? 2 : 1)
@@ -151,7 +153,7 @@ export function DocumentsWorkspace({ documents: initialDocuments, user, hasMore:
             <Link href="/settings" className="text-muted-foreground transition-colors hover:text-foreground">Settings</Link>
           </nav>
           <div className="flex items-center gap-2 sm:gap-4">
-            <Badge variant="secondary" className="hidden sm:flex">{planName} Plan</Badge>
+            <Badge variant="secondary" className="hidden sm:flex">{loadError ? "Plan unavailable" : `${planName} Plan`}</Badge>
             <MobileNav
               items={[
                 { href: "/dashboard", label: "Dashboard" },
@@ -181,18 +183,37 @@ export function DocumentsWorkspace({ documents: initialDocuments, user, hasMore:
           </div>
         </div>
 
+        {loadError && (
+          <Card role="alert" className="mb-6 border-destructive/30 bg-destructive/5">
+            <CardContent className="flex flex-col gap-4 p-5 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex items-start gap-3">
+                <AlertCircle className="mt-0.5 h-5 w-5 shrink-0 text-destructive" aria-hidden="true" />
+                <div>
+                  <p className="font-medium text-foreground">Document data is temporarily unavailable.</p>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    Your saved documents are safe. Retry the workspace once the database connection recovers.
+                  </p>
+                </div>
+              </div>
+              <Button type="button" variant="outline" className="shrink-0" onClick={() => window.location.reload()}>
+                Retry documents
+              </Button>
+            </CardContent>
+          </Card>
+        )}
+
         <Card className="mb-6 border-border bg-card">
           <CardContent className="pt-6">
             <div className="grid gap-4 md:grid-cols-[1fr_auto_auto_auto]">
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                 <label htmlFor="document-search" className="sr-only">Search documents</label>
-                <Input id="document-search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search documents..." className="pl-10" />
+                <Input id="document-search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search documents..." className="pl-10" disabled={loadError} />
               </div>
               <label className="flex items-center gap-2 text-sm text-muted-foreground">
                 <Filter className="h-4 w-4" />
                 <span className="sr-only">Filter by type</span>
-                <select value={typeFilter} onChange={(event) => setTypeFilter(event.target.value)} className="h-9 rounded-md border border-input bg-background px-3 text-sm text-foreground">
+                <select value={typeFilter} onChange={(event) => setTypeFilter(event.target.value)} className="h-9 rounded-md border border-input bg-background px-3 text-sm text-foreground" disabled={loadError}>
                   <option value="all">All types</option>
                   <option value="proposal">Proposals</option>
                   <option value="pitch-deck">Pitch decks</option>
@@ -200,14 +221,14 @@ export function DocumentsWorkspace({ documents: initialDocuments, user, hasMore:
               </label>
               <label className="flex items-center gap-2 text-sm text-muted-foreground">
                 <span className="sr-only">Sort documents</span>
-                <select value={sort} onChange={(event) => setSort(event.target.value as "newest" | "oldest")} className="h-9 rounded-md border border-input bg-background px-3 text-sm text-foreground">
+                <select value={sort} onChange={(event) => setSort(event.target.value as "newest" | "oldest")} className="h-9 rounded-md border border-input bg-background px-3 text-sm text-foreground" disabled={loadError}>
                   <option value="newest">Newest first</option>
                   <option value="oldest">Oldest first</option>
                 </select>
               </label>
               <label className="flex items-center gap-2 text-sm text-muted-foreground">
                 <span className="sr-only">Filter by date</span>
-                <select value={dateFilter} onChange={(event) => setDateFilter(event.target.value)} className="h-9 rounded-md border border-input bg-background px-3 text-sm text-foreground">
+                <select value={dateFilter} onChange={(event) => setDateFilter(event.target.value)} className="h-9 rounded-md border border-input bg-background px-3 text-sm text-foreground" disabled={loadError}>
                   <option value="all">All dates</option>
                   <option value="7">Last 7 days</option>
                   <option value="30">Last 30 days</option>
@@ -216,7 +237,7 @@ export function DocumentsWorkspace({ documents: initialDocuments, user, hasMore:
               </label>
             </div>
             <div className="mt-3 flex min-h-5 items-center justify-between text-sm" aria-live="polite">
-              <span className="text-muted-foreground">{filteredDocuments.length} of {documents.length} documents</span>
+              <span className="text-muted-foreground">{loadError ? "Document data unavailable" : `${filteredDocuments.length} of ${documents.length} documents`}</span>
               {message && <span className="text-primary">{message}</span>}
             </div>
           </CardContent>
@@ -225,7 +246,13 @@ export function DocumentsWorkspace({ documents: initialDocuments, user, hasMore:
         <Card className="border-border bg-card">
           <CardHeader><CardTitle>All Documents ({filteredDocuments.length})</CardTitle></CardHeader>
           <CardContent>
-            {filteredDocuments.length === 0 ? (
+            {loadError ? (
+              <div className="py-12 text-center">
+                <AlertCircle className="mx-auto mb-4 h-10 w-10 text-muted-foreground" aria-hidden="true" />
+                <h2 className="font-medium text-foreground">Documents unavailable</h2>
+                <p className="mt-1 text-sm text-muted-foreground">Retry the workspace after the database connection recovers.</p>
+              </div>
+            ) : filteredDocuments.length === 0 ? (
               <div className="py-12 text-center">
                 <FileText className="mx-auto mb-4 h-10 w-10 text-muted-foreground" />
                 <h2 className="font-medium text-foreground">No matching documents</h2>

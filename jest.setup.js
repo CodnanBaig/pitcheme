@@ -12,7 +12,7 @@ global.fetch = jest.fn()
 // Mock environment variables for testing
 process.env.NEXTAUTH_SECRET = 'test-secret-for-local-verification-only-32-chars'
 process.env.NEXTAUTH_URL = 'http://localhost:3000'
-process.env.DATABASE_URL = 'mongodb://127.0.0.1:27017/pitchgenie-test'
+process.env.DATABASE_URL = 'mongodb://127.0.0.1:27017/pitchgenie-test?replicaSet=rs0'
 process.env.OPENROUTER_API_KEY = 'test-openrouter-key'
 process.env.STRIPE_SECRET_KEY = 'sk_test_123456789'
 process.env.STRIPE_WEBHOOK_SECRET = 'whsec_test_123'
@@ -26,6 +26,7 @@ jest.mock('next/navigation', () => ({
     replace: jest.fn(),
     back: jest.fn(),
   }),
+  notFound: jest.fn(),
   useSearchParams: () => ({
     get: jest.fn(),
   }),

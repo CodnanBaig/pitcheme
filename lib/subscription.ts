@@ -3,6 +3,7 @@ import {
   STRIPE_PLANS,
   normalizeStripeSubscriptionStatus,
   getPlanForPriceId,
+  type PaidPlanType,
   type PlanType,
   type SubscriptionStatus,
 } from "./stripe"
@@ -24,6 +25,7 @@ export interface UserSubscription {
   currentPeriodStart?: Date
   currentPeriodEnd?: Date
   cancelAtPeriodEnd?: boolean
+  stripeEventCreatedAt?: Date
   createdAt: Date
   updatedAt: Date
 }
@@ -33,6 +35,18 @@ export interface UsageRecord {
   month: string // YYYY-MM format
   proposals: number
   pitchDecks: number
+}
+
+function normalizeStoredPlan(value: unknown): PlanType {
+  return value === "FREE" || value === "PRO" || value === "ENTERPRISE"
+    ? value
+    : "FREE"
+}
+
+function normalizeStoredStatus(value: unknown): SubscriptionStatus {
+  return value === "active" || value === "canceled" || value === "past_due" || value === "incomplete"
+    ? value
+    : "past_due"
 }
 
 export async function getUserSubscription(userId: string): Promise<UserSubscription | null> {
@@ -67,14 +81,23 @@ export async function getUserSubscription(userId: string): Promise<UserSubscript
     stripeCustomerId: subscription.stripeCustomerId ?? undefined,
     stripeSubscriptionId: subscription.stripeSubscriptionId ?? undefined,
     stripePriceId: subscription.stripePriceId ?? undefined,
-    plan: subscription.plan as PlanType,
-    status: subscription.status as SubscriptionStatus,
+    plan: normalizeStoredPlan(subscription.plan),
+    status: normalizeStoredStatus(subscription.status),
     currentPeriodStart: subscription.currentPeriodStart ?? undefined,
     currentPeriodEnd: subscription.currentPeriodEnd ?? undefined,
     cancelAtPeriodEnd: subscription.cancelAtPeriodEnd ?? undefined,
+    stripeEventCreatedAt: subscription.stripeEventCreatedAt ?? undefined,
     createdAt: subscription.createdAt,
     updatedAt: subscription.updatedAt,
   }
+}
+
+function stripeEventDate(created?: number): Date | undefined {
+  if (created === undefined) return undefined
+  if (!Number.isInteger(created) || created <= 0) {
+    throw new Error("Invalid Stripe event timestamp")
+  }
+  return new Date(created * 1000)
 }
 
 /**
@@ -85,12 +108,20 @@ export async function getUserSubscription(userId: string): Promise<UserSubscript
 export async function syncStripeSubscription(
   userId: string,
   subscription: Stripe.Subscription,
+  eventCreated?: number,
 ): Promise<PlanType | null> {
   if (!userId) throw new Error("User ID is required")
 
-  const priceId = subscription.items.data[0]?.price?.id ?? null
-  const plan = getPlanForPriceId(priceId)
-  if (!plan) return null
+  const plans = [...new Set(
+    subscription.items.data
+      .map((item) => getPlanForPriceId(item.price?.id))
+      .filter((candidate): candidate is PaidPlanType => candidate !== null),
+  )]
+  if (plans.length !== 1) return null
+  const plan = plans[0]
+  const priceId = subscription.items.data
+    .map((item) => item.price?.id)
+    .find((candidate): candidate is string => Boolean(candidate) && getPlanForPriceId(candidate) === plan)
 
   const customerId = typeof subscription.customer === "string"
     ? subscription.customer
@@ -105,12 +136,41 @@ export async function syncStripeSubscription(
     currentPeriodStart: new Date(subscription.current_period_start * 1000),
     currentPeriodEnd: new Date(subscription.current_period_end * 1000),
     cancelAtPeriodEnd: subscription.cancel_at_period_end,
-  })
+  }, eventCreated)
 
   return plan
 }
 
-export async function updateUserSubscription(userId: string, updates: Partial<UserSubscription>) {
+export async function updateUserSubscription(
+  userId: string,
+  updates: Partial<UserSubscription>,
+  eventCreated?: number,
+) {
+  if (!userId) throw new Error("User ID is required")
+
+  const eventDate = stripeEventDate(eventCreated)
+  const guardedUpdates = eventDate
+    ? { ...updates, stripeEventCreatedAt: eventDate }
+    : updates
+
+  if (guardedUpdates.stripeEventCreatedAt) {
+    await getUserSubscription(userId)
+    await prisma.userSubscription.updateMany({
+      where: {
+        userId,
+        OR: [
+          { stripeEventCreatedAt: null },
+          { stripeEventCreatedAt: { lte: guardedUpdates.stripeEventCreatedAt } },
+        ],
+      },
+      data: {
+        ...guardedUpdates,
+        updatedAt: new Date(),
+      },
+    })
+    return
+  }
+
   await prisma.userSubscription.upsert({
     where: { userId },
     update: {
@@ -119,9 +179,9 @@ export async function updateUserSubscription(userId: string, updates: Partial<Us
     },
     create: {
       userId,
-      ...updates,
-      plan: updates.plan || "FREE",
-      status: updates.status || "active",
+      ...guardedUpdates,
+      plan: guardedUpdates.plan || "FREE",
+      status: guardedUpdates.status || "active",
     },
   })
 }
@@ -201,6 +261,10 @@ export async function incrementUsage(userId: string, type: "proposals" | "pitchD
 
 type UsageType = "proposals" | "pitchDecks"
 
+export type UsageReservation = {
+  month: string
+}
+
 function usageField(type: UsageType): "proposals" | "pitchDecks" {
   return type
 }
@@ -221,7 +285,7 @@ function isUniqueConstraintError(error: unknown): boolean {
  * finite plan limit. Call releaseUsage when the generation fails after a
  * reservation; successful generations keep the reservation as their usage.
  */
-export async function reserveUsage(userId: string, type: UsageType): Promise<boolean> {
+export async function reserveUsage(userId: string, type: UsageType): Promise<UsageReservation | null> {
   if (!userId) throw new Error("User ID is required")
 
   const subscription = await getUserSubscription(userId)
@@ -230,6 +294,7 @@ export async function reserveUsage(userId: string, type: UsageType): Promise<boo
   const limit = plan.limits[type]
   const month = new Date().toISOString().slice(0, 7)
   const field = usageField(type)
+  const reservation = { month }
 
   if (limit === -1) {
     await prisma.usage.upsert({
@@ -237,7 +302,7 @@ export async function reserveUsage(userId: string, type: UsageType): Promise<boo
       update: { [field]: { increment: 1 } },
       create: usageCreateData(userId, month, type),
     })
-    return true
+    return reservation
   }
 
   const updated = await prisma.usage.updateMany({
@@ -248,11 +313,11 @@ export async function reserveUsage(userId: string, type: UsageType): Promise<boo
     } as Prisma.UsageWhereInput,
     data: { [field]: { increment: 1 } } as Prisma.UsageUpdateManyMutationInput,
   })
-  if (updated.count > 0) return true
+  if (updated.count > 0) return reservation
 
   try {
     await prisma.usage.create({ data: usageCreateData(userId, month, type) })
-    return true
+    return reservation
   } catch (error) {
     // A concurrent instance may have created the first monthly row. Only
     // retry that expected unique-key race; surface other database failures.
@@ -267,14 +332,13 @@ export async function reserveUsage(userId: string, type: UsageType): Promise<boo
     } as Prisma.UsageWhereInput,
     data: { [field]: { increment: 1 } } as Prisma.UsageUpdateManyMutationInput,
   })
-  return retried.count > 0
+  return retried.count > 0 ? reservation : null
 }
 
 /** Release a reservation after a failed generation without allowing negatives. */
-export async function releaseUsage(userId: string, type: UsageType): Promise<void> {
+export async function releaseUsage(userId: string, type: UsageType, month = new Date().toISOString().slice(0, 7)): Promise<void> {
   if (!userId) throw new Error("User ID is required")
 
-  const month = new Date().toISOString().slice(0, 7)
   const field = usageField(type)
   await prisma.usage.updateMany({
     where: {

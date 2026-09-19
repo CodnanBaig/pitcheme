@@ -18,6 +18,8 @@ export type RateLimitResult = {
 
 const buckets = new Map<string, Bucket>()
 const MAX_BUCKETS = 10_000
+const SHARED_BUCKET_CLEANUP_INTERVAL_MS = 60_000
+let lastSharedBucketCleanupAt = 0
 
 function pruneBuckets(now: number) {
   for (const [key, bucket] of buckets) {
@@ -58,11 +60,13 @@ export function checkRateLimit(
 
 export function resetRateLimits() {
   buckets.clear()
+  lastSharedBucketCleanupAt = 0
 }
 
 type RateLimitStoreClient = {
   findUnique?: (args: { where: { key: string } }) => Promise<{ count: number; resetAt: Date } | null>
   create?: (args: { data: { key: string; count: number; resetAt: Date } }) => Promise<{ count: number; resetAt: Date }>
+  deleteMany?: (args: { where: { resetAt: { lte: Date } } }) => Promise<{ count: number }>
   updateMany?: (args: {
     where: { key: string; resetAt?: { lte?: Date; gt?: Date }; count?: { lt: number } }
     data: { count: number | { increment: number }; resetAt?: Date }
@@ -77,6 +81,24 @@ function getRateLimitStore(): Required<RateLimitStoreClient> | null {
   return store as Required<RateLimitStoreClient>
 }
 
+async function pruneExpiredSharedBuckets(
+  store: RateLimitStoreClient,
+  now: Date,
+): Promise<void> {
+  if (typeof store.deleteMany !== "function") return
+
+  const nowMs = now.getTime()
+  if (nowMs - lastSharedBucketCleanupAt < SHARED_BUCKET_CLEANUP_INTERVAL_MS) return
+  lastSharedBucketCleanupAt = nowMs
+
+  try {
+    await store.deleteMany({ where: { resetAt: { lte: now } } })
+  } catch {
+    // Cleanup is maintenance only. The limiter below still fails closed if
+    // its atomic operations cannot reach the shared store.
+  }
+}
+
 function resultFromBucket(bucket: { count: number; resetAt: Date }, limit: number): RateLimitResult {
   return {
     allowed: bucket.count <= limit,
@@ -85,10 +107,18 @@ function resultFromBucket(bucket: { count: number; resetAt: Date }, limit: numbe
   }
 }
 
+function unavailableRateLimit(options: RateLimitOptions): RateLimitResult {
+  return {
+    allowed: false,
+    remaining: 0,
+    resetAt: Date.now() + options.windowMs,
+  }
+}
+
 /**
  * Uses the MongoDB-backed bucket when RATE_LIMIT_STORE=mongodb. If the shared
- * store is unavailable, it deliberately falls back to the process-local guard
- * so a transient telemetry failure never turns into unlimited access.
+ * store is unavailable, fail closed so a multi-instance deployment cannot
+ * silently fall back to independent process-local buckets.
  */
 export async function enforceRateLimit(
   key: string,
@@ -97,13 +127,14 @@ export async function enforceRateLimit(
   if (process.env.RATE_LIMIT_STORE !== "mongodb") return checkRateLimit(key, options)
 
   const store = getRateLimitStore()
-  if (!store) return checkRateLimit(key, options)
+  if (!store) return unavailableRateLimit(options)
 
   const normalizedKey = key.slice(0, 200)
   const now = new Date()
   const resetAt = new Date(now.getTime() + options.windowMs)
 
   try {
+    await pruneExpiredSharedBuckets(store, now)
     const reset = await store.updateMany({
       where: { key: normalizedKey, resetAt: { lte: now } },
       data: { count: 1, resetAt },
@@ -123,12 +154,12 @@ export async function enforceRateLimit(
       data: { count: { increment: 1 } },
     })
     const current = await store.findUnique({ where: { key: normalizedKey } })
-    if (!current) return checkRateLimit(key, options)
+    if (!current) return unavailableRateLimit(options)
     if (incremented.count === 0) {
       return { allowed: false, remaining: 0, resetAt: current.resetAt.getTime() }
     }
     return resultFromBucket(current, options.limit)
   } catch {
-    return checkRateLimit(key, options)
+    return unavailableRateLimit(options)
   }
 }

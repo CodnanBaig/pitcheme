@@ -1,7 +1,13 @@
 // Keep API tests independent from the real database and model providers.
 jest.mock('@/auth', () => ({ auth: jest.fn() }))
 jest.mock('@/lib/subscription', () => ({ canUserGenerate: jest.fn(), incrementUsage: jest.fn() }))
-jest.mock('@/lib/prisma', () => ({ prisma: { document: { create: jest.fn() } } }))
+jest.mock('@/lib/prisma', () => ({
+  prisma: {
+    document: { create: jest.fn() },
+    documentVersion: { create: jest.fn() },
+    $transaction: jest.fn(),
+  },
+}))
 jest.mock('@/lib/ai-service', () => ({ aiService: { generateProposal: jest.fn() } }))
 
 import { NextRequest } from 'next/server'
@@ -16,11 +22,15 @@ const mockAuth = auth as jest.MockedFunction<typeof auth>
 const mockCanUserGenerate = canUserGenerate as jest.MockedFunction<typeof canUserGenerate>
 const mockIncrementUsage = incrementUsage as jest.MockedFunction<typeof incrementUsage>
 const mockPrismaDocumentCreate = prisma.document.create as jest.MockedFunction<typeof prisma.document.create>
+const mockPrismaDocumentVersionCreate = prisma.documentVersion.create as jest.MockedFunction<typeof prisma.documentVersion.create>
+const mockPrismaTransaction = prisma.$transaction as unknown as jest.Mock
 const mockAIServiceGenerateProposal = aiService.generateProposal as jest.MockedFunction<typeof aiService.generateProposal>
 
 describe('/api/generate/proposal - Simple Tests', () => {
   beforeEach(() => {
     jest.clearAllMocks()
+    mockPrismaTransaction.mockImplementation(async (callback: (transaction: typeof prisma) => unknown) => callback(prisma))
+    mockPrismaDocumentVersionCreate.mockResolvedValue({} as never)
   })
 
   const validRequestData = {
@@ -51,7 +61,7 @@ describe('/api/generate/proposal - Simple Tests', () => {
   const mockAIResponse = {
     success: true,
     content: '# Business Proposal\n\n## Executive Summary\n\nDetailed proposal content...',
-    model: 'meta-llama/llama-3.1-8b-instruct:free',
+    model: 'qwen/qwen3.8-27b:free',
     tokensUsed: 2000,
     generationTime: 3000
   }

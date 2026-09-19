@@ -44,7 +44,6 @@ export function ExportButton({ documentId, documentType, documentTitle }: Export
         description: `Your ${documentType.replace("-", " ")} has been downloaded as ${format.toUpperCase()}.`,
       })
     } catch (error) {
-      console.error("Export error:", error)
       toast({
         title: "Export Failed",
         description: "There was an error exporting your document. Please try again.",

@@ -8,7 +8,11 @@ export type { PaidPlanType, PlanType } from "./stripe-plans"
 // only after the secret, webhook, and paid-price IDs are configured in the
 // deployment environment.
 export const stripe = process.env.STRIPE_SECRET_KEY
-  ? new Stripe(process.env.STRIPE_SECRET_KEY, { apiVersion: "2025-02-24.acacia" })
+  ? new Stripe(process.env.STRIPE_SECRET_KEY, {
+      apiVersion: "2025-02-24.acacia",
+      maxNetworkRetries: 2,
+      timeout: 10_000,
+    })
   : null
 
 export function isStripeBillingEnabled(): boolean {
