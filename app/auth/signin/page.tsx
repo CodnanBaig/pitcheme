@@ -6,8 +6,9 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Zap, Lock } from "lucide-react"
+import { Lock } from "lucide-react"
 import Link from "next/link"
+import { AuthFrame } from "@/components/auth-frame"
 
 function SignInContent() {
   const router = useRouter()
@@ -97,28 +98,21 @@ function SignInContent() {
 
   if (status === "loading") {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center p-4">
-        <div className="text-center">Loading...</div>
-      </div>
+      <AuthFrame><div className="text-center text-sm text-muted-foreground">Loading...</div></AuthFrame>
     )
   }
 
   return (
-    <div className="min-h-screen bg-background flex items-center justify-center p-4">
-      <Card className="w-full max-w-md">
-        <CardHeader className="text-center">
-          <div className="flex items-center justify-center gap-2 mb-4">
-            <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center">
-              <Zap className="w-5 h-5 text-primary-foreground" />
-            </div>
-            <span className="text-xl font-bold text-foreground">PitchGenie</span>
-          </div>
-          <CardTitle>Welcome back</CardTitle>
-          <CardDescription>Sign in to your account to continue</CardDescription>
+    <AuthFrame>
+      <Card className="w-full">
+        <CardHeader>
+          <p className="mb-2 text-xs font-semibold uppercase tracking-[0.12em] text-primary">Secure workspace access</p>
+          <CardTitle className="text-2xl">Welcome back</CardTitle>
+          <CardDescription>Sign in to continue to your document workspace.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           {successMessage && (
-            <div className="p-3 text-sm text-green-600 bg-green-50 border border-green-200 rounded-md">
+            <div className="rounded-md border border-primary/20 bg-accent p-3 text-sm text-accent-foreground">
               {successMessage}
             </div>
           )}
@@ -139,7 +133,7 @@ function SignInContent() {
               <Label htmlFor={passwordId}>Password</Label>
               <Input id={passwordId} name="password" type="password" placeholder="Enter your password" required className="w-full" />
             </div>
-            <Button type="submit" disabled={isLoading} className="w-full bg-primary hover:bg-primary/90">
+            <Button type="submit" disabled={isLoading} className="w-full">
               <Lock className="w-4 h-4 mr-2" />
               {isLoading
                 ? (signInAttempted ? "Redirecting..." : "Signing in...")
@@ -150,19 +144,19 @@ function SignInContent() {
 
           <div className="text-center text-sm text-muted-foreground">
             Don't have an account?{" "}
-            <Link href="/auth/signup" className="text-primary hover:underline">
+            <Link href="/auth/signup" className="font-medium text-foreground underline underline-offset-4 hover:text-primary">
               Sign up
             </Link>
           </div>
         </CardContent>
       </Card>
-    </div>
+    </AuthFrame>
   )
 }
 
 export default function SignInPage() {
   return (
-    <Suspense fallback={<div className="min-h-screen bg-background flex items-center justify-center p-4"><div className="text-center">Loading...</div></div>}>
+    <Suspense fallback={<AuthFrame><div className="text-center text-sm text-muted-foreground">Loading...</div></AuthFrame>}>
       <SignInContent />
     </Suspense>
   )

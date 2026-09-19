@@ -1,6 +1,6 @@
 "use client"
 
-import { useSession, signIn, signOut } from "next-auth/react"
+import { useSession, signOut } from "next-auth/react"
 import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
@@ -27,11 +27,11 @@ export function AuthButton() {
   if (!session) {
     return (
       <div className="flex items-center gap-4">
-        <Button variant="ghost" size="sm" onClick={() => signIn()}>
-          Sign In
+        <Button variant="ghost" size="sm" asChild>
+          <Link href="/auth/signin">Sign In</Link>
         </Button>
-        <Button size="sm" className="bg-primary hover:bg-primary/90" onClick={() => signIn()}>
-          Get Started
+        <Button size="sm" className="hidden bg-primary hover:bg-[#0b6262] sm:inline-flex" asChild>
+          <Link href="/auth/signup">Get Started</Link>
         </Button>
       </div>
     )

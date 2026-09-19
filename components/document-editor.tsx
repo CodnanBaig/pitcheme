@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { parsePitchDeckSlides, serializePitchDeckSlides, type EditablePitchSlide } from "@/lib/pitch-deck-editor"
+import { WorkspaceShell } from "@/components/workspace-shell"
 
 export type EditableDocument = {
   id: string
@@ -169,20 +170,20 @@ export function DocumentEditor({ document }: { document: EditableDocument }) {
   }
 
   return (
-    <main className="min-h-screen bg-background px-4 py-8 sm:px-6 lg:px-8">
-      <div className="mx-auto max-w-5xl">
+    <WorkspaceShell active="editor" contentClassName="max-w-6xl">
+      <div>
         <div className="mb-8 flex items-center justify-between gap-4">
           <div>
             <a href={returnPath} className="mb-4 inline-flex items-center text-sm text-muted-foreground transition-colors hover:text-foreground">
               <ArrowLeft className="mr-2 h-4 w-4" /> Back to document
             </a>
-            <p className="mb-2 text-xs font-semibold uppercase tracking-[0.18em] text-primary">Workspace / Edit</p>
-            <h1 className="text-3xl font-bold text-foreground">Edit {document.type === "proposal" ? "proposal" : "pitch deck"}</h1>
+            <p className="mb-2 text-xs font-semibold uppercase tracking-[0.12em] text-primary">Document workspace / Edit</p>
+            <h1 className="text-3xl font-semibold text-foreground">Edit {document.type === "proposal" ? "proposal" : "pitch deck"}</h1>
             <p className="mt-2 text-muted-foreground">Make a controlled update, then save it to your private workspace.</p>
           </div>
           <div className="hidden rounded-md border border-border bg-card px-3 py-2 text-right text-xs text-muted-foreground sm:block">
             <div className="font-medium capitalize text-foreground">{document.type.replace("-", " ")}</div>
-            <div>Autosave is enabled — changes save after a short pause</div>
+            <div>Autosave is enabled. Changes save after a short pause.</div>
           </div>
         </div>
 
@@ -302,6 +303,6 @@ export function DocumentEditor({ document }: { document: EditableDocument }) {
           </div>
         </form>
       </div>
-    </main>
+    </WorkspaceShell>
   )
 }

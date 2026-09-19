@@ -458,9 +458,11 @@ describe("production readiness contracts", () => {
 
   it("keeps internal brand exploration routes out of production by default", () => {
     const landingPage = fs.readFileSync(path.join(process.cwd(), "app/page.tsx"), "utf8")
-    expect(landingPage).toContain("const brandLabEnabled =")
-    expect(landingPage).toContain("brandLabEnabled &&")
-    expect(landingPage).toContain("brandLabEnabled ?")
+    const publicHeader = fs.readFileSync(path.join(process.cwd(), "components/public-header.tsx"), "utf8")
+    expect(landingPage).not.toContain('href="/brand-lab"')
+    expect(landingPage).not.toContain("Visual directions")
+    expect(publicHeader).not.toContain('href: "/brand-lab"')
+    expect(publicHeader).not.toContain("Visual directions")
 
     for (const routeFile of ["app/brand-lab/page.tsx", "app/brand-lab/[option]/page.tsx"]) {
       const source = fs.readFileSync(path.join(process.cwd(), routeFile), "utf8")

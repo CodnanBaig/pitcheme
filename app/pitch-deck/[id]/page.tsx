@@ -5,11 +5,12 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { ExportButton } from "@/components/export-button"
 import { ShareButton } from "@/components/share-button"
-import { ArrowLeft, Edit, PresentationIcon as PresentationChart, Zap } from "lucide-react"
+import { Edit, PresentationIcon as PresentationChart } from "lucide-react"
 import Link from "next/link"
 import { prisma } from "@/lib/prisma"
 import { sanitizeGeneratedHtml } from "@/lib/sanitize-html"
 import { isMongoObjectId } from "@/lib/mongo-id"
+import { WorkspaceShell } from "@/components/workspace-shell"
 
 export const runtime = "nodejs"
 
@@ -217,60 +218,27 @@ export default async function PitchDeckPage({ params }: PitchDeckPageProps) {
   }
 
   return (
-    <div className="min-h-screen bg-background">
+    <WorkspaceShell active="documents" contentClassName="max-w-5xl">
       {/* Add styles for pitch deck rendering */}
       <style dangerouslySetInnerHTML={{ __html: pitchDeckStyles }} />
-      
-      {/* Header */}
-      <header className="border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 sticky top-0 z-50">
-        <div className="container mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between h-16">
-            <div className="flex items-center gap-4">
-              <Button variant="ghost" size="sm" asChild>
-                <Link href="/dashboard">
-                  <ArrowLeft className="w-4 h-4 mr-2" />
-                  Back to Dashboard
-                </Link>
-              </Button>
-              <div className="flex items-center gap-2">
-                <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center">
-                  <Zap className="w-5 h-5 text-primary-foreground" />
-                </div>
-                <span className="text-xl font-bold text-foreground">PitchGenie</span>
-              </div>
-            </div>
-            <div className="flex items-center gap-2">
-              <ShareButton documentId={pitchDeck.id} />
-              <Button variant="outline" size="sm" asChild>
-                <Link href={`/documents/${pitchDeck.id}/edit`}>
-                  <Edit className="w-4 h-4 mr-2" />
-                  Edit
-                </Link>
-              </Button>
-              <ExportButton
-                documentId={pitchDeck.id}
-                documentType="pitch-deck"
-                documentTitle={`${pitchDeck.startupName} Pitch Deck`}
-              />
-            </div>
-          </div>
-        </div>
-      </header>
-
-      <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="max-w-4xl mx-auto">
           {/* Pitch Deck Header */}
-          <div className="flex items-center justify-between mb-6">
+          <div className="mb-6 flex flex-col justify-between gap-5 border-b border-border pb-6 sm:flex-row sm:items-end">
             <div className="flex items-center gap-3">
-              <div className="w-12 h-12 bg-accent/10 rounded-lg flex items-center justify-center">
-                <PresentationChart className="w-6 h-6 text-accent" />
+              <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-accent">
+                <PresentationChart className="w-6 h-6 text-primary" />
               </div>
               <div>
-                <h1 className="text-2xl font-bold text-foreground">{pitchDeck.startupName} Pitch Deck</h1>
+                <div className="mb-1 flex items-center gap-2"><p className="text-xs font-semibold uppercase tracking-[0.12em] text-primary">Pitch deck</p><Badge variant="secondary">Completed</Badge></div>
+                <h1 className="text-2xl font-semibold text-foreground">{pitchDeck.startupName} Pitch Deck</h1>
                 <p className="text-muted-foreground">{pitchDeck.tagline}</p>
               </div>
             </div>
-            <Badge variant="default">Completed</Badge>
+            <div className="flex flex-wrap gap-2">
+              <ShareButton documentId={pitchDeck.id} />
+              <Button variant="outline" size="sm" asChild><Link href={`/documents/${pitchDeck.id}/edit`}><Edit className="mr-2 h-4 w-4" />Edit</Link></Button>
+              <ExportButton documentId={pitchDeck.id} documentType="pitch-deck" documentTitle={`${pitchDeck.startupName} Pitch Deck`} />
+            </div>
           </div>
 
           {/* Pitch Deck Content */}
@@ -359,7 +327,6 @@ export default async function PitchDeckPage({ params }: PitchDeckPageProps) {
             />
           </div>
         </div>
-      </div>
-    </div>
+    </WorkspaceShell>
   )
 }

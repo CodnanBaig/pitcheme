@@ -1,10 +1,11 @@
 import Link from "next/link"
-import { ArrowLeft, Check, Crown, Zap } from "lucide-react"
+import { Check, Crown, FileText } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { UpgradeButton } from "@/components/upgrade-button"
 import { isStripeBillingEnabled, STRIPE_PLANS } from "@/lib/stripe"
+import { PublicHeader } from "@/components/public-header"
 
 export const dynamic = "force-dynamic"
 
@@ -17,21 +18,20 @@ const plans = [
 export default function PricingPage() {
   const billingEnabled = isStripeBillingEnabled()
   return (
-    <main className="min-h-screen bg-background px-4 py-10 sm:px-6 lg:px-8">
+    <div className="min-h-screen bg-background">
+      <PublicHeader />
+    <main className="px-4 py-14 sm:px-6 lg:px-8 lg:py-20">
       <div className="mx-auto max-w-6xl">
         <div className="mb-12 flex items-start justify-between gap-6">
           <div>
-            <Link href="/" className="mb-6 inline-flex items-center text-sm text-muted-foreground transition-colors hover:text-foreground">
-              <ArrowLeft className="mr-2 h-4 w-4" /> Back to home
-            </Link>
-            <p className="mb-3 text-xs font-semibold uppercase tracking-[0.18em] text-primary">Plans & access</p>
-            <h1 className="max-w-2xl text-4xl font-bold tracking-tight text-foreground sm:text-5xl">A clear path from first draft to repeatable delivery.</h1>
+            <p className="mb-3 text-xs font-semibold uppercase tracking-[0.12em] text-primary">Plans & access</p>
+            <h1 className="max-w-2xl text-4xl font-semibold tracking-tight text-foreground sm:text-5xl">A clear path from first draft to repeatable delivery.</h1>
             <p className="mt-4 max-w-2xl text-lg text-muted-foreground">Choose the workspace size that fits your process. {billingEnabled ? "Checkout is available in the configured Stripe environment." : "Paid checkout is staged until the deployment enables Stripe test mode."}</p>
           </div>
-          <div className="hidden rounded-lg border border-border bg-card p-4 text-right sm:block">
-            <Zap className="ml-auto h-5 w-5 text-primary" />
-            <p className="mt-2 text-xs font-medium uppercase tracking-wider text-muted-foreground">Enterprise direction</p>
-            <p className="mt-1 text-sm font-semibold text-foreground">Controlled. Clear. Ready.</p>
+          <div className="hidden w-52 rounded-lg border border-white/10 bg-[#0d1b2a] p-5 text-white sm:block">
+            <FileText className="h-5 w-5 text-[#47b8b7]" />
+            <p className="mt-5 text-xs font-medium uppercase tracking-[0.12em] text-slate-400">Workspace standard</p>
+            <p className="mt-2 text-sm font-semibold">Controlled. Clear. Ready.</p>
           </div>
         </div>
 
@@ -39,11 +39,11 @@ export default function PricingPage() {
           {plans.map(({ key, label, featured }) => {
             const plan = STRIPE_PLANS[key]
             return (
-              <Card key={key} className={`relative flex flex-col border-border bg-card ${featured ? "border-primary shadow-lg shadow-primary/10" : ""}`}>
+              <Card key={key} className={`relative flex flex-col border-border bg-card ${featured ? "border-primary bg-[#f1f8f7]" : ""}`}>
                 {featured && <Badge className="absolute right-5 top-5">Most selected</Badge>}
                 <CardHeader>
                   <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
-                    {key === "ENTERPRISE" ? <Crown className="h-5 w-5 text-primary" /> : <Zap className="h-5 w-5 text-primary" />}
+                    {key === "ENTERPRISE" ? <Crown className="h-5 w-5 text-primary" /> : <FileText className="h-5 w-5 text-primary" />}
                   </div>
                   <CardTitle className="text-2xl">{plan.name}</CardTitle>
                   <CardDescription>{label}</CardDescription>
@@ -79,5 +79,6 @@ export default function PricingPage() {
         <p className="mt-8 text-center text-sm text-muted-foreground">{billingEnabled ? "Payments are processed by Stripe. Subscription access updates after a verified webhook." : "Paid plan checkout, webhooks, and portal actions remain disabled until the billing release is enabled."}</p>
       </div>
     </main>
+    </div>
   )
 }

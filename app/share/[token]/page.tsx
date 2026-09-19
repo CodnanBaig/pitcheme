@@ -4,6 +4,7 @@ import { Card, CardContent } from "@/components/ui/card"
 import { prisma } from "@/lib/prisma"
 import { sanitizeGeneratedHtml } from "@/lib/sanitize-html"
 import { hashDocumentShareToken, isPersistentDocumentShareToken, verifyDocumentShareToken } from "@/lib/share-token"
+import { BrandMark } from "@/components/brand-mark"
 
 export const dynamic = "force-dynamic"
 export const revalidate = 0
@@ -92,9 +93,10 @@ export default async function SharedDocumentPage({ params }: { params: Promise<{
     <main className="min-h-screen bg-background px-4 py-8 sm:px-6 lg:px-8">
       {isPitchDeck && <style dangerouslySetInnerHTML={{ __html: sharedDeckStyles }} />}
       <div className="mx-auto max-w-5xl">
+        <div className="mb-8"><BrandMark href="/" /></div>
         <header className="mb-8 flex items-center justify-between gap-4 border-b border-border pb-5">
           <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-primary">PitchGenie · Shared view</p>
+            <p className="text-xs font-semibold uppercase tracking-[0.12em] text-primary">Secure shared view</p>
             <h1 className="mt-2 text-2xl font-bold text-foreground">{title}</h1>
             {document.clientCompany && <p className="mt-1 text-sm text-muted-foreground">{document.clientCompany}</p>}
           </div>

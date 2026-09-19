@@ -5,13 +5,13 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Label } from "@/components/ui/label"
 import { Separator } from "@/components/ui/separator"
 import { Badge } from "@/components/ui/badge"
-import { User, CreditCard, Bell, Shield, Zap, Crown } from "lucide-react"
+import { User, CreditCard, Bell, Shield, Crown } from "lucide-react"
 import Link from "next/link"
 import { ProfileSettingsForm } from "@/components/profile-settings-form"
 import { getUserSubscription, getUserUsage } from "@/lib/subscription"
 import { STRIPE_PLANS } from "@/lib/stripe"
-import { AuthButton } from "@/components/auth-button"
-import { MobileNav } from "@/components/mobile-nav"
+import { WorkspaceShell } from "@/components/workspace-shell"
+import { PageHeading } from "@/components/page-heading"
 
 export const runtime = "nodejs"
 
@@ -30,51 +30,12 @@ export default async function SettingsPage() {
   const plan = STRIPE_PLANS[planKey] || STRIPE_PLANS.FREE
 
   return (
-    <div className="min-h-screen bg-background">
-      {/* Header */}
-      <header className="border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-        <div className="container mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between h-16">
-            <div className="flex items-center gap-2">
-              <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center">
-                <Zap className="w-5 h-5 text-primary-foreground" />
-              </div>
-              <span className="text-xl font-bold text-foreground">PitchGenie</span>
-            </div>
-            <nav className="hidden md:flex items-center gap-8">
-              <Link href="/dashboard" className="text-muted-foreground hover:text-foreground transition-colors">
-                Dashboard
-              </Link>
-              <Link href="/documents" className="text-muted-foreground hover:text-foreground transition-colors">
-                Documents
-              </Link>
-              <Link href="/settings" className="text-foreground font-medium">
-                Settings
-              </Link>
-            </nav>
-            <div className="flex items-center gap-2 sm:gap-4">
-              <Badge variant="secondary" className="hidden sm:flex">
-                {plan.name}
-              </Badge>
-              <MobileNav
-                items={[
-                  { href: "/dashboard", label: "Dashboard" },
-                  { href: "/documents", label: "Documents" },
-                  { href: "/settings", label: "Settings" },
-                ]}
-              />
-              <AuthButton />
-            </div>
-          </div>
-        </div>
-      </header>
-
-      <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Page Header */}
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-foreground mb-2">Settings</h1>
-          <p className="text-muted-foreground">Manage your account settings and preferences</p>
-        </div>
+    <WorkspaceShell active="settings" planName={`${plan.name} plan`}>
+        <PageHeading
+          eyebrow="Account administration"
+          title="Settings"
+          description="Manage your profile, subscription, and workspace preferences."
+        />
 
         <div className="grid lg:grid-cols-4 gap-6">
           {/* Settings Navigation */}
@@ -190,7 +151,6 @@ export default async function SettingsPage() {
             </Card>
           </div>
         </div>
-      </div>
-    </div>
+    </WorkspaceShell>
   )
 }

@@ -1,6 +1,7 @@
 import Link from "next/link"
-import { ArrowLeft, SearchX, Zap } from "lucide-react"
+import { ArrowLeft, SearchX } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { BrandMark } from "@/components/brand-mark"
 
 export default function NotFound() {
   return (
@@ -8,15 +9,13 @@ export default function NotFound() {
       <div className="mx-auto flex min-h-[70vh] max-w-3xl items-center justify-center">
         <section
           aria-labelledby="not-found-title"
-          className="w-full rounded-2xl border border-border bg-card p-8 shadow-sm sm:p-12"
+          className="w-full rounded-xl border border-border bg-card p-8 sm:p-12"
         >
+          <BrandMark href="/" className="mb-8" />
           <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10 text-primary">
             <SearchX aria-hidden="true" className="h-6 w-6" />
           </div>
-          <div className="mt-8 flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-            <Zap aria-hidden="true" className="h-4 w-4 text-primary" />
-            PitchGenie / route unavailable
-          </div>
+          <p className="mt-8 text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">Workspace route unavailable</p>
           <h1 id="not-found-title" className="mt-3 text-3xl font-semibold tracking-tight sm:text-4xl">
             That workspace route is not available.
           </h1>

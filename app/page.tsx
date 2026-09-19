@@ -1,414 +1,244 @@
-import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
-import { CheckCircle, Zap, FileText, PresentationIcon as PresentationChart, Clock, Star } from "lucide-react"
-import { AuthButton } from "@/components/auth-button"
-import { SmartCTAButton } from "@/components/smart-cta-button"
-import { MobileNav } from "@/components/mobile-nav"
-import { isStripeBillingEnabled, STRIPE_PLANS } from "@/lib/stripe"
 import Link from "next/link"
+import {
+  ArrowRight,
+  Check,
+  CheckCircle2,
+  Download,
+  FileText,
+  History,
+  Presentation,
+  ShieldCheck,
+} from "lucide-react"
+import { PublicHeader } from "@/components/public-header"
+import { SmartCTAButton } from "@/components/smart-cta-button"
+import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
+import { isStripeBillingEnabled, STRIPE_PLANS } from "@/lib/stripe"
 
 export const dynamic = "force-dynamic"
 
+const workflow = [
+  { step: "01", title: "Capture the brief", detail: "A guided intake collects client, scope, commercial, and audience context." },
+  { step: "02", title: "Build the first draft", detail: "Generate a structured proposal or investor narrative from the same reliable workflow." },
+  { step: "03", title: "Review and deliver", detail: "Edit, restore versions, share a controlled link, or export a client-ready file." },
+]
+
 export default function LandingPage() {
   const billingEnabled = isStripeBillingEnabled()
-  const brandLabEnabled = process.env.NODE_ENV !== "production" || process.env.BRAND_LAB_ENABLED === "true"
+  const paidPlanAvailability = billingEnabled
+    ? "Available in the configured billing environment"
+    : "Paid plan staged for the billing release"
   const currentYear = new Date().getFullYear()
-  const plans = [
-    { key: "FREE" as const, featured: false },
-    { key: "PRO" as const, featured: true },
-    { key: "ENTERPRISE" as const, featured: false },
-  ]
 
   return (
     <div className="min-h-screen bg-background">
-      {/* Header */}
-      <header className="border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 sticky top-0 z-50">
-        <div className="container mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between h-16">
-            <div className="flex items-center gap-2">
-              <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center">
-                <Zap className="w-5 h-5 text-primary-foreground" />
-              </div>
-              <span className="text-xl font-bold text-foreground">PitchGenie</span>
-            </div>
-            <nav className="hidden md:flex items-center gap-8">
-              <Link href="#features" className="text-muted-foreground hover:text-foreground transition-colors">
-                Features
-              </Link>
-              <Link href="#pricing" className="text-muted-foreground hover:text-foreground transition-colors">
-                Pricing
-              </Link>
-              <Link href="#testimonials" className="text-muted-foreground hover:text-foreground transition-colors">
-                Workflow
-              </Link>
-              {brandLabEnabled && (
-                <Link href="/brand-lab" className="text-muted-foreground hover:text-foreground transition-colors">
-                  Visual directions
-                </Link>
-              )}
-            </nav>
-            <div className="flex items-center gap-2">
-              <MobileNav
-                items={[
-                  { href: "#features", label: "Features" },
-                  { href: "#pricing", label: "Pricing" },
-                  { href: "#testimonials", label: "Workflow" },
-                  ...(brandLabEnabled ? [{ href: "/brand-lab", label: "Visual directions" }] : []),
-                ]}
-              />
-              <AuthButton />
-            </div>
-          </div>
-        </div>
-      </header>
+      <PublicHeader homeAnchors />
 
-      {/* Hero Section */}
-      <section className="py-20 lg:py-32">
-        <div className="container mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="max-w-4xl mx-auto text-center">
-            <Badge variant="secondary" className="mb-6">
-              <Zap className="w-4 h-4 mr-2" />
-              AI-Powered Document Generation
-            </Badge>
-            <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold text-foreground mb-6 leading-tight">
-              Generate Winning Proposals & Pitch Decks in <span className="text-primary">Minutes</span>
+      <section className="overflow-hidden bg-[#0d1b2a] text-white">
+        <div className="container grid min-h-[690px] items-center gap-14 py-16 lg:grid-cols-[0.9fr_1.1fr] lg:py-24">
+          <div className="max-w-2xl">
+            <div className="mb-7 inline-flex items-center gap-2 border border-white/15 bg-white/[0.05] px-3 py-1.5 text-xs font-medium text-slate-200">
+              <span className="h-1.5 w-1.5 rounded-full bg-[#47b8b7]" />
+              Business documents, built with control
+            </div>
+            <h1 className="text-balance text-4xl font-semibold leading-[1.05] tracking-[-0.04em] sm:text-5xl lg:text-[4rem]">
+              Generate Winning Proposals &amp; Pitch Decks
+              <span className="block text-[#72cfcb]">without losing the narrative.</span>
             </h1>
-            <p className="text-xl text-muted-foreground mb-8 max-w-2xl mx-auto leading-relaxed">
-              Stop spending hours on proposals. Let AI create professional, compelling documents that win clients and
-              secure funding for your business.
+            <p className="mt-7 max-w-xl text-lg leading-8 text-slate-300">
+              Turn a structured brief into credible client and investor documents, then review, version, share, and export from one governed workspace.
             </p>
-            <div className="flex flex-col sm:flex-row gap-4 justify-center items-center mb-12">
-              <SmartCTAButton 
-                size="lg" 
-                className="bg-primary hover:bg-primary/90 text-primary-foreground px-8 py-3"
-              >
-                Start Creating Free
+            <div className="mt-9 flex flex-col gap-3 sm:flex-row">
+              <SmartCTAButton size="lg" className="h-11 bg-[#0e7373] px-6 text-white hover:bg-[#0b6262]">
+                Start Creating Free <ArrowRight className="h-4 w-4" />
               </SmartCTAButton>
-              <Button variant="outline" size="lg" className="px-8 py-3 bg-transparent" asChild>
+              <Button asChild size="lg" variant="outline" className="h-11 border-white/25 bg-transparent px-6 text-white hover:bg-white/10 hover:text-white">
                 <Link href="#features">Explore the workflow</Link>
               </Button>
             </div>
-            <div className="flex items-center justify-center gap-8 text-sm text-muted-foreground">
-              <div className="flex items-center gap-2">
-                <CheckCircle className="w-4 h-4 text-primary" />
-                No credit card required
+            <div className="mt-9 flex flex-wrap gap-x-6 gap-y-3 text-sm text-slate-300">
+              {["No credit card required", "Private document workspace", "PDF and DOCX export"].map((item) => (
+                <span key={item} className="flex items-center gap-2">
+                  <CheckCircle2 className="h-4 w-4 text-[#47b8b7]" /> {item}
+                </span>
+              ))}
+            </div>
+          </div>
+
+          <div className="relative lg:pl-6">
+            <div className="absolute -inset-12 enterprise-grid opacity-30" aria-hidden="true" />
+            <div className="relative overflow-hidden rounded-xl border border-white/15 bg-[#f4f6f8] shadow-[0_32px_80px_rgba(0,0,0,0.28)]">
+              <div className="flex h-11 items-center justify-between border-b border-[#d7e0e7] bg-white px-4">
+                <div className="flex items-center gap-2 text-[11px] font-medium text-[#667085]">
+                  <span className="h-2 w-2 rounded-full bg-[#18a6a6]" />
+                  PitchGenie Workspace
+                </div>
+                <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-[#0e7373]">Ready for review</span>
               </div>
-              <div className="flex items-center gap-2">
-                <CheckCircle className="w-4 h-4 text-primary" />
-                Structured workflow
-              </div>
-              <div className="flex items-center gap-2">
-                <CheckCircle className="w-4 h-4 text-primary" />
-                Export to PDF/DOCX
+              <div className="grid min-h-[410px] grid-cols-[112px_1fr] sm:grid-cols-[150px_1fr]">
+                <div className="bg-[#132337] p-3 sm:p-4">
+                  <div className="mb-7 flex items-end gap-1.5 px-2">
+                    <span className="h-2 w-1.5 bg-slate-400" />
+                    <span className="h-4 w-1.5 bg-[#47b8b7]" />
+                    <span className="h-3 w-1.5 bg-white" />
+                  </div>
+                  {["Overview", "Documents", "New proposal", "Pitch deck"].map((item, index) => (
+                    <div key={item} className={`mb-1 rounded-md px-2 py-2 text-[10px] sm:text-xs ${index === 1 ? "bg-[#0e7373] text-white" : "text-slate-400"}`}>
+                      {item}
+                    </div>
+                  ))}
+                </div>
+                <div className="p-4 sm:p-7">
+                  <div className="flex flex-col justify-between gap-4 border-b border-[#d7e0e7] pb-5 sm:flex-row sm:items-end">
+                    <div>
+                      <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-[#0e7373]">Proposal workspace</p>
+                      <p className="mt-2 text-xl font-semibold text-[#0d1b2a]">Q4 Systems Rollout</p>
+                      <p className="mt-1 text-xs text-[#667085]">Northstar Operations · Updated today</p>
+                    </div>
+                    <span className="w-fit rounded-full bg-[#dceeed] px-2.5 py-1 text-[10px] font-semibold text-[#0b5e5e]">Draft complete</span>
+                  </div>
+                  <div className="mt-5 grid gap-4 sm:grid-cols-[1fr_120px]">
+                    <div className="rounded-lg border border-[#d7e0e7] bg-white p-4">
+                      <p className="text-xs font-semibold text-[#0d1b2a]">Document outline</p>
+                      <div className="mt-3 divide-y divide-[#e8edf1]">
+                        {["Executive summary", "Delivery scope", "Commercial terms", "Next steps"].map((item, index) => (
+                          <div key={item} className="flex items-center justify-between py-2.5 text-[11px] text-[#526170]">
+                            <span>{String(index + 1).padStart(2, "0")} · {item}</span>
+                            <Check className="h-3.5 w-3.5 text-[#0e7373]" />
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                    <div className="space-y-3">
+                      <div className="rounded-lg border border-[#d7e0e7] bg-white p-3"><p className="text-[10px] text-[#667085]">Version</p><p className="mt-1 text-sm font-semibold text-[#0d1b2a]">04</p></div>
+                      <div className="rounded-lg border border-[#d7e0e7] bg-white p-3"><p className="text-[10px] text-[#667085]">Format</p><p className="mt-1 text-sm font-semibold text-[#0d1b2a]">Proposal</p></div>
+                      <div className="rounded-lg bg-[#0e7373] p-3 text-white"><p className="text-[10px] text-white">Next action</p><p className="mt-1 text-xs font-semibold">Review draft</p></div>
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
         </div>
       </section>
 
-      {/* Features Section */}
-      <section id="features" className="py-20 bg-secondary/30">
-        <div className="container mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="max-w-3xl mx-auto text-center mb-16">
-            <h2 className="text-3xl lg:text-4xl font-bold text-foreground mb-4">
-              Everything you need to win more business
-            </h2>
-            <p className="text-lg text-muted-foreground">
-              Powerful AI tools designed specifically for freelancers, consultants, and startup founders
-            </p>
+      <section className="border-b border-border bg-white">
+        <div className="container grid divide-y divide-border py-2 sm:grid-cols-3 sm:divide-x sm:divide-y-0">
+          {[
+            { icon: ShieldCheck, title: "Private by default", detail: "Account-scoped documents and controlled share links" },
+            { icon: History, title: "Version aware", detail: "Restore earlier revisions without losing current work" },
+            { icon: Download, title: "Delivery ready", detail: "Export proposals and decks in practical formats" },
+          ].map(({ icon: Icon, title, detail }) => (
+            <div key={title} className="flex gap-3 px-3 py-5 sm:px-6">
+              <Icon className="mt-0.5 h-5 w-5 shrink-0 text-primary" />
+              <div><p className="text-sm font-semibold text-foreground">{title}</p><p className="mt-1 text-xs leading-5 text-muted-foreground">{detail}</p></div>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      <section id="features" className="py-20 lg:py-28">
+        <div className="container grid gap-12 lg:grid-cols-[0.65fr_1.35fr]">
+          <div className="lg:sticky lg:top-28 lg:self-start">
+            <p className="text-xs font-semibold uppercase tracking-[0.12em] text-primary">Core capabilities</p>
+            <h2 className="mt-4 text-3xl font-semibold text-foreground sm:text-4xl">Two document workflows. One operating standard.</h2>
+            <p className="mt-5 max-w-md leading-7 text-muted-foreground">Each workflow is purpose-built for its audience while sharing the same controlled path from intake to delivery.</p>
           </div>
-          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
-            <Card className="border-border bg-card hover:shadow-lg transition-shadow">
-              <CardHeader>
-                <div className="w-12 h-12 bg-primary/10 rounded-lg flex items-center justify-center mb-4">
-                  <FileText className="w-6 h-6 text-primary" />
-                </div>
-                <CardTitle>Smart Proposals</CardTitle>
-                <CardDescription>
-                  AI-generated proposals with executive summaries, project scope, timelines, and pricing
-                </CardDescription>
-              </CardHeader>
-            </Card>
-            <Card className="border-border bg-card hover:shadow-lg transition-shadow">
-              <CardHeader>
-                <div className="w-12 h-12 bg-primary/10 rounded-lg flex items-center justify-center mb-4">
-                  <PresentationChart className="w-6 h-6 text-primary" />
-                </div>
-                <CardTitle>Pitch Decks</CardTitle>
-                <CardDescription>
-                  Professional 8-10 slide presentations with problem, solution, market analysis, and team sections
-                </CardDescription>
-              </CardHeader>
-            </Card>
-            <Card className="border-border bg-card hover:shadow-lg transition-shadow">
-              <CardHeader>
-                <div className="w-12 h-12 bg-primary/10 rounded-lg flex items-center justify-center mb-4">
-                  <Clock className="w-6 h-6 text-primary" />
-                </div>
-                <CardTitle>Efficient workflow</CardTitle>
-                <CardDescription>
-                  Generate complete documents from a structured brief. No more spending days on proposals
-                </CardDescription>
-              </CardHeader>
-            </Card>
-            <Card className="border-border bg-card hover:shadow-lg transition-shadow">
-              <CardHeader>
-                <div className="w-12 h-12 bg-accent/10 rounded-lg flex items-center justify-center mb-4">
-                  <CheckCircle className="w-6 h-6 text-accent" />
-                </div>
-                <CardTitle>Export Ready</CardTitle>
-                <CardDescription>
-                  Download as PDF or DOCX files, ready to send to clients or investors immediately
-                </CardDescription>
-              </CardHeader>
-            </Card>
-            <Card className="border-border bg-card hover:shadow-lg transition-shadow">
-              <CardHeader>
-                <div className="w-12 h-12 bg-accent/10 rounded-lg flex items-center justify-center mb-4">
-                  <Star className="w-6 h-6 text-accent" />
-                </div>
-                <CardTitle>Custom Branding</CardTitle>
-                <CardDescription>
-                  Add your logo, colors, and branding to make every document uniquely yours
-                </CardDescription>
-              </CardHeader>
-            </Card>
-            <Card className="border-border bg-card hover:shadow-lg transition-shadow">
-              <CardHeader>
-                <div className="w-12 h-12 bg-accent/10 rounded-lg flex items-center justify-center mb-4">
-                  <Zap className="w-6 h-6 text-accent" />
-                </div>
-                <CardTitle>AI-Powered</CardTitle>
-                <CardDescription>
-                  Advanced AI understands your business and creates tailored content for each client
-                </CardDescription>
-              </CardHeader>
-            </Card>
+          <div className="space-y-5">
+            <div className="grid overflow-hidden rounded-xl border border-border bg-white md:grid-cols-[1fr_220px]">
+              <div className="p-7 sm:p-9">
+                <FileText className="h-7 w-7 text-primary" />
+                <h3 className="mt-6 text-2xl font-semibold">Client proposals</h3>
+                <p className="mt-3 max-w-xl leading-7 text-muted-foreground">Shape client context into a structured commercial document with scope, timing, pricing, and next steps that remain editable.</p>
+                <Button asChild variant="link" className="mt-5 h-auto p-0"><Link href="/generate/proposal">Build a proposal <ArrowRight className="h-4 w-4" /></Link></Button>
+              </div>
+              <div className="border-t border-border bg-[#e8edf1] p-7 md:border-l md:border-t-0">
+                <p className="text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">Included structure</p>
+                <ul className="mt-5 space-y-3 text-sm text-foreground">
+                  {["Executive summary", "Project scope", "Delivery plan", "Commercial terms"].map((item) => <li key={item} className="flex gap-2"><Check className="mt-0.5 h-4 w-4 text-primary" />{item}</li>)}
+                </ul>
+              </div>
+            </div>
+            <div className="grid overflow-hidden rounded-xl border border-border bg-white md:grid-cols-[220px_1fr]">
+              <div className="order-2 border-t border-border bg-[#132337] p-7 text-white md:order-1 md:border-r md:border-t-0">
+                <p className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-400">Narrative arc</p>
+                <ol className="mt-5 space-y-3 text-sm text-slate-200">
+                  {["Problem", "Solution", "Market", "Funding case"].map((item, index) => <li key={item} className="flex gap-3"><span className="text-[#47b8b7]">0{index + 1}</span>{item}</li>)}
+                </ol>
+              </div>
+              <div className="order-1 p-7 sm:p-9 md:order-2">
+                <Presentation className="h-7 w-7 text-primary" />
+                <h3 className="mt-6 text-2xl font-semibold">Investor pitch decks</h3>
+                <p className="mt-3 max-w-xl leading-7 text-muted-foreground">Turn company, market, traction, and funding inputs into an investor narrative with structured slides and speaker notes.</p>
+                <Button asChild variant="link" className="mt-5 h-auto p-0"><Link href="/generate/pitch-deck">Build a pitch deck <ArrowRight className="h-4 w-4" /></Link></Button>
+              </div>
+            </div>
           </div>
         </div>
       </section>
 
-      {/* Pricing Section */}
-      <section id="pricing" className="py-20">
-        <div className="container mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="max-w-3xl mx-auto text-center mb-16">
-            <h2 className="text-3xl lg:text-4xl font-bold text-foreground mb-4">Simple, transparent pricing</h2>
-            <p className="text-lg text-muted-foreground">
-              {billingEnabled
-                ? "Choose the plan that fits your business needs"
-                : "Start with the free workspace; paid plans are staged for the billing release."}
-            </p>
+      <section id="workflow" className="border-y border-border bg-white py-20 lg:py-24">
+        <div className="container">
+          <div className="max-w-2xl">
+            <p className="text-xs font-semibold uppercase tracking-[0.12em] text-primary">Working method</p>
+            <h2 className="mt-4 text-3xl font-semibold sm:text-4xl">A clear path from context to decision-ready output.</h2>
           </div>
-          <div className="grid md:grid-cols-3 gap-8 max-w-5xl mx-auto">
-            {plans.map(({ key, featured }) => {
+          <div className="mt-12 border-y border-border">
+            {workflow.map((item) => (
+              <div key={item.step} className="grid gap-3 border-b border-border py-7 last:border-b-0 sm:grid-cols-[80px_240px_1fr] sm:items-center">
+                <span className="text-sm font-semibold text-primary">{item.step}</span>
+                <h3 className="text-lg font-semibold">{item.title}</h3>
+                <p className="max-w-2xl text-sm leading-6 text-muted-foreground">{item.detail}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <section id="pricing" className="py-20 lg:py-28">
+        <div className="container">
+          <div className="flex flex-col justify-between gap-6 sm:flex-row sm:items-end">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.12em] text-primary">Plans and access</p>
+              <h2 className="mt-4 text-3xl font-semibold sm:text-4xl">Start focused. Scale when the workflow proves itself.</h2>
+            </div>
+            <Button asChild variant="outline"><Link href="/pricing">Compare plans <ArrowRight className="h-4 w-4" /></Link></Button>
+          </div>
+          <div className="mt-10 grid overflow-hidden rounded-xl border border-border bg-white lg:grid-cols-3 lg:divide-x lg:divide-border">
+            {(["FREE", "PRO", "ENTERPRISE"] as const).map((key) => {
               const plan = STRIPE_PLANS[key]
+              const featured = key === "PRO"
               return (
-                <Card key={key} className={`${featured ? "border-primary" : "border-border"} bg-card relative`}>
-                  {featured && (
-                    <div className="absolute -top-4 left-1/2 -translate-x-1/2 transform">
-                      <Badge className="bg-primary text-primary-foreground">Most Popular</Badge>
-                    </div>
-                  )}
-                  <CardHeader className="text-center pb-8">
-                    <CardTitle className="text-2xl">{plan.name}</CardTitle>
-                    <div className="text-4xl font-bold text-foreground mt-4">${plan.price}</div>
-                    <CardDescription className="mt-2">
-                      {key === "FREE"
-                        ? "Perfect for trying out PitchGenie"
-                        : billingEnabled
-                          ? "Available in the configured billing environment"
-                          : "Paid plan staged for the billing release"}
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    {plan.features.map((feature) => (
-                      <div key={feature} className="flex items-center gap-3">
-                        <CheckCircle className="w-5 h-5 text-primary" />
-                        <span>{feature}</span>
-                      </div>
-                    ))}
-                    <Button className="w-full mt-8" variant={featured ? "default" : "outline"} asChild>
-                      <Link href={key === "FREE" ? "/auth/signup" : "/pricing"}>
-                        {key === "FREE" ? "Get Started Free" : billingEnabled ? `Choose ${plan.name}` : "View staged plan"}
-                      </Link>
-                    </Button>
-                  </CardContent>
-                </Card>
+                <div key={key} className={`relative p-7 ${featured ? "bg-[#f1f8f7]" : ""}`}>
+                  {featured && <Badge className="absolute right-6 top-6">Most selected</Badge>}
+                  <p className="text-sm font-semibold">{plan.name}</p>
+                  <p className="mt-2 text-sm text-muted-foreground">{key === "FREE" ? "For validating the workflow" : key === "PRO" ? "For independent delivery teams" : "For scaled document operations"}</p>
+                  {key !== "FREE" && <p className="mt-2 text-xs text-muted-foreground">{paidPlanAvailability}</p>}
+                  <p className="mt-7 text-4xl font-semibold">${plan.price}<span className="text-sm font-normal text-muted-foreground">{plan.price > 0 ? " / month" : ""}</span></p>
+                  <ul className="mt-7 space-y-3 text-sm text-muted-foreground">
+                    {plan.features.slice(0, 4).map((feature) => <li key={feature} className="flex gap-2"><Check className="mt-0.5 h-4 w-4 shrink-0 text-primary" />{feature}</li>)}
+                  </ul>
+                  <Button asChild variant={featured ? "default" : "outline"} className="mt-8 w-full">
+                    <Link href={key === "FREE" ? "/auth/signup" : "/pricing"}>{key === "FREE" ? "Get Started Free" : billingEnabled ? `Choose ${plan.name}` : "View staged plan"}</Link>
+                  </Button>
+                </div>
               )
             })}
           </div>
         </div>
       </section>
 
-      {/* Workflow outcomes section */}
-      <section id="testimonials" className="py-20 bg-secondary/30">
-        <div className="container mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="max-w-3xl mx-auto text-center mb-16">
-            <h2 className="text-3xl lg:text-4xl font-bold text-foreground mb-4">
-              Built for repeatable delivery
-            </h2>
-            <p className="text-lg text-muted-foreground">A clear workflow for turning rough context into credible business output.</p>
-          </div>
-          <div className="grid md:grid-cols-3 gap-8">
-            <Card className="border-border bg-card">
-              <CardContent className="pt-6">
-                <div className="flex items-center gap-2 mb-4 text-primary">
-                  <FileText className="w-5 h-5" />
-                  <span className="text-xs font-semibold uppercase tracking-wider">Proposal workflow</span>
-                </div>
-                <p className="text-muted-foreground mb-4">
-                  Move from an unstructured brief to a structured proposal without starting from a blank page.
-                </p>
-                <div className="text-sm font-medium text-foreground">Brief → draft → refine</div>
-              </CardContent>
-            </Card>
-            <Card className="border-border bg-card">
-              <CardContent className="pt-6">
-                <div className="flex items-center gap-2 mb-4 text-primary">
-                  <PresentationChart className="w-5 h-5" />
-                  <span className="text-xs font-semibold uppercase tracking-wider">Pitch deck workflow</span>
-                </div>
-                <p className="text-muted-foreground mb-4">
-                  Keep problem, solution, market, and funding context in one editable investor narrative.
-                </p>
-                <div className="text-sm font-medium text-foreground">Story → structure → presentation</div>
-              </CardContent>
-            </Card>
-            <Card className="border-border bg-card">
-              <CardContent className="pt-6">
-                <div className="flex items-center gap-2 mb-4 text-primary">
-                  <CheckCircle className="w-5 h-5" />
-                  <span className="text-xs font-semibold uppercase tracking-wider">Workspace workflow</span>
-                </div>
-                <p className="text-muted-foreground mb-4">
-                  Search, edit, version, duplicate, and export from one calm, ownership-scoped workspace.
-                </p>
-                <div className="text-sm font-medium text-foreground">Manage → review → export</div>
-              </CardContent>
-            </Card>
-          </div>
+      <section className="bg-[#0d1b2a] py-16 text-white">
+        <div className="container flex flex-col justify-between gap-8 md:flex-row md:items-center">
+          <div><p className="text-sm font-medium text-[#72cfcb]">Your next document can start with structure.</p><h2 className="mt-3 max-w-2xl text-3xl font-semibold">Bring the brief. Leave with a controlled, editable business document.</h2></div>
+          <SmartCTAButton className="h-11 shrink-0 bg-[#0e7373] px-6 text-white hover:bg-[#0b6262]">Start Creating Free <ArrowRight className="h-4 w-4" /></SmartCTAButton>
         </div>
       </section>
 
-      {/* CTA Section */}
-      <section className="py-20">
-        <div className="container mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="max-w-4xl mx-auto text-center">
-            <h2 className="text-3xl lg:text-4xl font-bold text-foreground mb-4">Ready to win more business?</h2>
-            <p className="text-lg text-muted-foreground mb-8">
-              Bring your next brief into a repeatable workflow for proposals and pitch decks.
-            </p>
-            <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
-              <SmartCTAButton 
-                size="lg" 
-                className="bg-primary hover:bg-primary/90 text-primary-foreground px-8 py-3"
-              >
-                Start Creating Free
-              </SmartCTAButton>
-              {brandLabEnabled && (
-                <Button variant="outline" size="lg" className="px-8 py-3 bg-transparent" asChild>
-                  <Link href="/brand-lab/enterprise">View enterprise direction</Link>
-                </Button>
-              )}
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* Footer */}
-      <footer className="border-t border-border bg-secondary/30">
-        <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-12">
-          <div className="grid gap-8 md:grid-cols-3">
-            <div>
-              <div className="flex items-center gap-2 mb-4">
-                <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center">
-                  <Zap className="w-5 h-5 text-primary-foreground" />
-                </div>
-                <span className="text-xl font-bold text-foreground">PitchGenie</span>
-              </div>
-              <p className="text-muted-foreground">
-                AI-powered proposal and pitch deck generator for modern professionals.
-              </p>
-            </div>
-            <div>
-              <h3 className="font-semibold text-foreground mb-4">Product</h3>
-              <ul className="space-y-2 text-muted-foreground">
-                <li>
-                  <Link href="#features" className="hover:text-foreground transition-colors">
-                    Features
-                  </Link>
-                </li>
-                <li>
-                  <Link href="#pricing" className="hover:text-foreground transition-colors">
-                    Pricing
-                  </Link>
-                </li>
-                <li>
-                  <Link href="/generate/proposal" className="hover:text-foreground transition-colors">
-                    Proposal generator
-                  </Link>
-                </li>
-                <li>
-                  <Link href="/generate/pitch-deck" className="hover:text-foreground transition-colors">
-                    Pitch deck generator
-                  </Link>
-                </li>
-              </ul>
-            </div>
-            <div>
-              <h3 className="font-semibold text-foreground mb-4">Workspace</h3>
-              <ul className="space-y-2 text-muted-foreground">
-                <li>
-                  <Link href="/dashboard" className="hover:text-foreground transition-colors">
-                    Dashboard
-                  </Link>
-                </li>
-                <li>
-                  <Link href="/auth/signin" className="hover:text-foreground transition-colors">
-                    Sign in
-                  </Link>
-                </li>
-                <li>
-                  <Link href="/auth/signup" className="hover:text-foreground transition-colors">
-                    Create account
-                  </Link>
-                </li>
-                {brandLabEnabled && (
-                  <li>
-                    <Link href="/brand-lab" className="hover:text-foreground transition-colors">
-                      Visual directions
-                    </Link>
-                  </li>
-                )}
-              </ul>
-            </div>
-            <div>
-              <h3 className="font-semibold text-foreground mb-4">Release</h3>
-              <ul className="space-y-2 text-muted-foreground">
-                <li>
-                  <Link href="/pricing" className="hover:text-foreground transition-colors">
-                    Billing state
-                  </Link>
-                </li>
-                {brandLabEnabled && (
-                  <li>
-                    <Link href="/brand-lab/enterprise" className="hover:text-foreground transition-colors">
-                      Enterprise direction
-                    </Link>
-                  </li>
-                )}
-                <li>
-                  <Link href="/auth/signup" className="hover:text-foreground transition-colors">
-                    Start a workspace
-                  </Link>
-                </li>
-              </ul>
-            </div>
-          </div>
-          <div className="border-t border-border mt-8 pt-8 text-center text-muted-foreground">
-            <p>&copy; {currentYear} PitchGenie. All rights reserved.</p>
-          </div>
+      <footer className="border-t border-border bg-white">
+        <div className="container flex flex-col justify-between gap-4 py-8 text-sm text-muted-foreground sm:flex-row sm:items-center">
+          <p>© {currentYear} PitchGenie. Structured business document workflows.</p>
+          <div className="flex flex-wrap gap-5"><Link href="/pricing" className="hover:text-foreground">Pricing</Link><Link href="/auth/signin" className="hover:text-foreground">Sign in</Link><Link href="/auth/signup" className="hover:text-foreground">Create account</Link></div>
         </div>
       </footer>
     </div>

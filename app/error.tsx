@@ -4,6 +4,7 @@ import { useEffect } from "react"
 import Link from "next/link"
 import { AlertTriangle, ArrowLeft, RefreshCw } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { BrandMark } from "@/components/brand-mark"
 
 type AppError = Error & { digest?: string }
 const DIGEST_PATTERN = /^[A-Za-z0-9._:-]{1,96}$/
@@ -45,13 +46,14 @@ export default function GlobalErrorBoundary({
       <div className="mx-auto flex min-h-[70vh] max-w-3xl items-center justify-center">
         <section
           aria-labelledby="application-error-title"
-          className="w-full rounded-2xl border border-border bg-card p-8 shadow-sm sm:p-12"
+          className="w-full rounded-xl border border-border bg-card p-8 sm:p-12"
         >
+          <BrandMark href="/" className="mb-8" />
           <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-destructive/10 text-destructive">
             <AlertTriangle aria-hidden="true" className="h-6 w-6" />
           </div>
-          <p className="mt-8 text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-            PitchGenie / system notice
+          <p className="mt-8 text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+            Workspace system notice
           </p>
           <h1 id="application-error-title" className="mt-3 text-3xl font-semibold tracking-tight sm:text-4xl">
             We couldn&apos;t finish that request.

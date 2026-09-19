@@ -61,11 +61,7 @@ export function FieldSelector({
               <CardContent className="p-4">
                 <div className="flex items-start space-x-3">
                   <div className={cn(
-                    "flex-shrink-0 w-10 h-10 rounded-lg flex items-center justify-center",
-                    field.color === 'blue' && "bg-blue-100 text-blue-600",
-                    field.color === 'red' && "bg-red-100 text-red-600",
-                    field.color === 'green' && "bg-green-100 text-green-600",
-                    field.color === 'purple' && "bg-purple-100 text-purple-600"
+                    "flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg bg-accent text-primary"
                   )}>
                     <Icon className="w-5 h-5" />
                   </div>

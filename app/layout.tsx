@@ -5,9 +5,9 @@ import { Toaster } from "@/components/ui/toaster"
 import "./globals.css"
 
 export const metadata: Metadata = {
-  title: "PitchGenie - Generate Winning Proposals & Pitch Decks in Minutes",
+  title: "PitchGenie - Enterprise Proposal & Pitch Deck Workspace",
   description:
-    "AI-powered proposal and pitch deck generator for freelancers and startups. Create professional documents in minutes.",
+    "Create, review, version, share, and export professional proposals and investor pitch decks from one controlled workspace.",
   generator: "PitchGenie",
 }
 

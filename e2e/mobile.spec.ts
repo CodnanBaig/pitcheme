@@ -12,9 +12,11 @@ test.describe("mobile smoke", () => {
     await expectNoHorizontalOverflow(page)
     await expect(page.getByRole("link", { name: "Explore the workflow" })).toHaveAttribute("href", "#features")
     await expect(page.getByRole("link", { name: "Get Started Free" })).toHaveAttribute("href", "/auth/signup")
+    await expect(page.getByRole("link", { name: "Visual directions" })).toHaveCount(0)
 
     await page.getByRole("button", { name: "Open navigation" }).click()
     await expect(page.getByRole("menuitem", { name: "Pricing" })).toBeVisible()
+    await expect(page.getByRole("menuitem", { name: "Visual directions" })).toHaveCount(0)
     await page.getByRole("menuitem", { name: "Pricing" }).click()
     await expect(page).toHaveURL(/#pricing$/)
   })
@@ -37,13 +39,13 @@ test.describe("mobile smoke", () => {
     await expect(page).toHaveURL(/\/dashboard$/)
     await expectNoHorizontalOverflow(page)
 
-    await page.getByRole("button", { name: "Open navigation" }).click()
+    await page.getByRole("button", { name: "Open workspace navigation" }).click()
     await page.getByRole("menuitem", { name: "Documents" }).click()
     await expect(page).toHaveURL(/\/documents$/)
     await expect(page.getByRole("heading", { name: "Documents", exact: true })).toBeVisible({ timeout: 10_000 })
     await expectNoHorizontalOverflow(page)
 
-    await page.getByRole("button", { name: "Open navigation" }).click()
+    await page.getByRole("button", { name: "Open workspace navigation" }).click()
     await page.getByRole("menuitem", { name: "Settings" }).click()
     await expect(page).toHaveURL(/\/settings$/)
     await expect(page.getByRole("heading", { name: "Settings" })).toBeVisible({ timeout: 10_000 })

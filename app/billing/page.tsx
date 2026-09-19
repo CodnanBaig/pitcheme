@@ -8,6 +8,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge"
 import { Progress } from "@/components/ui/progress"
 import { ManageSubscriptionButton } from "@/components/manage-subscription-button"
+import { WorkspaceShell } from "@/components/workspace-shell"
+import { PageHeading } from "@/components/page-heading"
 
 export const runtime = "nodejs"
 
@@ -24,11 +26,12 @@ export default async function BillingPage() {
   const billingEnabled = isStripeBillingEnabled()
 
   return (
-    <div className="container mx-auto px-4 py-8 max-w-4xl">
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold text-gray-900">Billing & Usage</h1>
-        <p className="text-gray-600 mt-2">Manage your subscription and view usage statistics</p>
-      </div>
+    <WorkspaceShell active="billing" planName={`${plan.name} plan`} contentClassName="max-w-5xl">
+      <PageHeading
+        eyebrow="Account administration"
+        title="Billing & Usage"
+        description="Manage your subscription and review monthly document generation usage."
+      />
 
       <div className="grid gap-6 md:grid-cols-2">
         {/* Current Plan */}
@@ -45,8 +48,8 @@ export default async function BillingPage() {
           <CardContent>
             <div className="space-y-2">
               {plan.features.map((feature, index) => (
-                <div key={index} className="flex items-center text-sm text-gray-600">
-                  <div className="w-2 h-2 bg-green-500 rounded-full mr-3" />
+                <div key={index} className="flex items-center text-sm text-muted-foreground">
+                  <div className="mr-3 h-2 w-2 rounded-full bg-primary" />
                   {feature}
                 </div>
               ))}
@@ -54,7 +57,7 @@ export default async function BillingPage() {
 
             {planKey !== "FREE" && (
               <div className="mt-4 pt-4 border-t">
-                <div className="text-sm text-gray-600">
+                <div className="text-sm text-muted-foreground">
                   <p>
                     Status: <span className="capitalize font-medium">{subscription?.status || "active"}</span>
                   </p>
@@ -108,8 +111,8 @@ export default async function BillingPage() {
             </div>
 
             {planKey === "FREE" && billingEnabled ? (
-              <div className="mt-4 p-3 bg-blue-50 rounded-lg">
-                <p className="text-sm text-blue-800">
+              <div className="mt-4 rounded-lg border border-primary/20 bg-accent p-3">
+                <p className="text-sm text-accent-foreground">
                   Upgrade to Pro for unlimited document generation and premium features.
                 </p>
                 <Button asChild className="mt-2 w-full" size="sm">
@@ -126,6 +129,6 @@ export default async function BillingPage() {
           </CardContent>
         </Card>
       </div>
-    </div>
+    </WorkspaceShell>
   )
 }

@@ -19,7 +19,7 @@ const stages = [
 export function GenerationProgress({ documentType, accent, activeStage: controlledStage }: GenerationProgressProps) {
   const [timedStage, setTimedStage] = useState(0)
   const theme = accent === "accent"
-    ? { text: "text-accent", background: "bg-accent", tint: "bg-accent/10" }
+    ? { text: "text-primary", background: "bg-primary", tint: "bg-accent" }
     : { text: "text-primary", background: "bg-primary", tint: "bg-primary/10" }
   const noun = documentType === "pitch-deck" ? "pitch deck" : "proposal"
 
@@ -35,7 +35,7 @@ export function GenerationProgress({ documentType, accent, activeStage: controll
 
   return (
     <section
-      className="mx-auto w-full max-w-xl rounded-2xl border border-border bg-card p-6 text-left shadow-sm sm:p-8"
+      className="mx-auto w-full max-w-xl rounded-xl border border-border bg-card p-6 text-left sm:p-8"
       aria-label={`Generating ${noun}`}
       aria-live="polite"
     >

@@ -8,7 +8,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Loader2, Sparkles, ArrowRight } from 'lucide-react';
+import { Loader2, Presentation, ArrowRight } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { FieldSelector } from '@/components/field-selector';
 import { DynamicFormGenerator } from '@/components/dynamic-form-generator';
@@ -157,16 +157,16 @@ export function EnhancedPitchDeckForm() {
     <div className="max-w-4xl mx-auto space-y-8">
       {/* Progress Indicator */}
       <div className="flex items-center justify-center space-x-4 mb-8">
-        <div className={`flex items-center space-x-2 ${step === 'field' ? 'text-accent' : 'text-muted-foreground'}`}>
+        <div className={`flex items-center space-x-2 ${step === 'field' ? 'text-primary' : 'text-muted-foreground'}`}>
           <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium ${
-            step === 'field' ? 'bg-accent text-accent-foreground' : 'bg-muted'
+            step === 'field' ? 'bg-primary text-primary-foreground' : 'bg-muted'
           }`}>1</div>
           <span className="text-sm font-medium">Select Industry</span>
         </div>
         <ArrowRight className="w-4 h-4 text-muted-foreground" />
-        <div className={`flex items-center space-x-2 ${step === 'form' ? 'text-accent' : 'text-muted-foreground'}`}>
+        <div className={`flex items-center space-x-2 ${step === 'form' ? 'text-primary' : 'text-muted-foreground'}`}>
           <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium ${
-            step === 'form' ? 'bg-accent text-accent-foreground' : 'bg-muted'
+            step === 'form' ? 'bg-primary text-primary-foreground' : 'bg-muted'
           }`}>2</div>
           <span className="text-sm font-medium">Startup Details</span>
         </div>
@@ -345,7 +345,7 @@ export function EnhancedPitchDeckForm() {
           )}
 
           {/* Generate Button */}
-          <Card className="border-accent/20 bg-accent/5">
+          <Card className="border-primary/20 bg-accent">
             <CardContent className="pt-6">
               <div className="text-center space-y-4">
                 {/* Visual Mode Toggle */}
@@ -360,8 +360,8 @@ export function EnhancedPitchDeckForm() {
                   />
                 </div>
                 
-                <div className="flex items-center justify-center gap-2 text-accent">
-                  <Sparkles className="w-5 h-5" />
+                <div className="flex items-center justify-center gap-2 text-primary">
+                  <Presentation className="w-5 h-5" />
                   <span className="font-medium">
                     Ready to create your {formData.visualMode ? 'visual ' : ''}{fieldConfig.name.toLowerCase()} pitch deck?
                   </span>
@@ -369,15 +369,15 @@ export function EnhancedPitchDeckForm() {
                 <p className="text-sm text-muted-foreground">
                   Our AI will create a compelling {fieldConfig.workflows.pitchDeck.slides.length}-slide {formData.visualMode ? 'visual ' : ''}pitch deck tailored for {fieldConfig.name.toLowerCase()} investors.
                   {formData.visualMode && (
-                    <span className="block mt-1 text-accent font-medium">
-                      📊 Visual mode includes detailed slide layouts, charts, and visual descriptions!
+                    <span className="mt-1 block font-medium text-primary">
+                      Visual mode includes detailed slide layouts, charts, and visual descriptions.
                     </span>
                   )}
                 </p>
                 <Button 
                   type="submit" 
                   size="lg" 
-                  className="bg-accent hover:bg-accent/90 text-accent-foreground px-8" 
+                  className="px-8"
                   disabled={isGenerating}
                 >
                   {isGenerating ? (
@@ -387,7 +387,7 @@ export function EnhancedPitchDeckForm() {
                     </>
                   ) : (
                     <>
-                      <Sparkles className="w-4 h-4 mr-2" />
+                      <Presentation className="w-4 h-4 mr-2" />
                       Generate Pitch Deck
                     </>
                   )}

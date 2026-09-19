@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Loader2, Sparkles, ArrowRight } from 'lucide-react';
+import { Loader2, FileText, ArrowRight } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { FieldSelector } from '@/components/field-selector';
 import { DynamicFormGenerator } from '@/components/dynamic-form-generator';
@@ -276,11 +276,11 @@ export function EnhancedProposalForm() {
           )}
 
           {/* Generate Button */}
-          <Card className="border-primary/20 bg-primary/5">
+          <Card className="border-primary/20 bg-accent">
             <CardContent className="pt-6">
               <div className="text-center space-y-4">
                 <div className="flex items-center justify-center gap-2 text-primary">
-                  <Sparkles className="w-5 h-5" />
+                  <FileText className="w-5 h-5" />
                   <span className="font-medium">Ready to generate your {fieldConfig.name.toLowerCase()} proposal?</span>
                 </div>
                 <p className="text-sm text-muted-foreground">
@@ -299,7 +299,7 @@ export function EnhancedProposalForm() {
                     </>
                   ) : (
                     <>
-                      <Sparkles className="w-4 h-4 mr-2" />
+                      <FileText className="w-4 h-4 mr-2" />
                       Generate Proposal
                     </>
                   )}

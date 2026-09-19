@@ -10,7 +10,7 @@ import {
   Plus,
   Clock,
   TrendingUp,
-  Zap,
+  CreditCard,
   Download,
   Eye,
   AlertCircle,
@@ -19,9 +19,9 @@ import Link from "next/link"
 import { prisma } from "@/lib/prisma"
 import { getUserSubscription, getUserUsage } from "@/lib/subscription"
 import { isStripeBillingEnabled, STRIPE_PLANS } from "@/lib/stripe"
-import { AuthButton } from "@/components/auth-button"
-import { MobileNav } from "@/components/mobile-nav"
 import { getServerRequestId, reportServerRouteError } from "@/lib/server-error-telemetry"
+import { WorkspaceShell } from "@/components/workspace-shell"
+import { PageHeading } from "@/components/page-heading"
 
 export const runtime = "nodejs"
 
@@ -131,53 +131,12 @@ function DashboardContent({ session, recentDocuments, stats, subscription, loadE
   const billingEnabled = isStripeBillingEnabled()
 
   return (
-    <div className="min-h-screen bg-background">
-      {/* Header */}
-      <header className="border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-        <div className="container mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between h-16">
-            <div className="flex items-center gap-2">
-              <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center">
-                <Zap className="w-5 h-5 text-primary-foreground" />
-              </div>
-              <span className="text-xl font-bold text-foreground">PitchGenie</span>
-            </div>
-            <nav className="hidden md:flex items-center gap-8">
-              <Link href="/dashboard" className="text-foreground font-medium">
-                Dashboard
-              </Link>
-              <Link href="/documents" className="text-muted-foreground hover:text-foreground transition-colors">
-                Documents
-              </Link>
-              <Link href="/settings" className="text-muted-foreground hover:text-foreground transition-colors">
-                Settings
-              </Link>
-            </nav>
-            <div className="flex items-center gap-2 sm:gap-4">
-              <Badge variant="secondary" className="hidden sm:flex">
-                {plan ? `${plan.name} Plan` : "Plan unavailable"}
-              </Badge>
-              <MobileNav
-                items={[
-                  { href: "/dashboard", label: "Dashboard" },
-                  { href: "/documents", label: "Documents" },
-                  { href: "/settings", label: "Settings" },
-                ]}
-              />
-              <AuthButton />
-            </div>
-          </div>
-        </div>
-      </header>
-
-      <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Welcome Section */}
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-foreground mb-2">
-            Welcome back, {session.user?.name?.split(" ")[0] || "there"}!
-          </h1>
-          <p className="text-muted-foreground">Ready to create your next winning proposal or pitch deck?</p>
-        </div>
+    <WorkspaceShell active="dashboard" planName={plan ? `${plan.name} plan` : "Plan unavailable"}>
+        <PageHeading
+          eyebrow="Workspace overview"
+          title={`Welcome back, ${session.user?.name?.split(" ")[0] || "there"}!`}
+          description="Create, review, and deliver proposals and pitch decks from one controlled workspace."
+        />
 
         {loadError && (
           <Card role="alert" className="mb-8 border-destructive/30 bg-destructive/5">
@@ -199,42 +158,42 @@ function DashboardContent({ session, recentDocuments, stats, subscription, loadE
         )}
 
         {/* Quick Actions */}
-        <div className="grid md:grid-cols-2 gap-6 mb-8">
-          <Card className="border-border bg-card hover:shadow-lg transition-shadow cursor-pointer group">
+        <div className="mb-8 grid gap-5 md:grid-cols-2">
+          <Card className="group border-border bg-card transition-colors hover:border-primary/50">
             <CardHeader className="pb-4">
               <div className="flex items-center justify-between">
-                <div className="w-12 h-12 bg-primary/10 rounded-lg flex items-center justify-center group-hover:bg-primary/20 transition-colors">
+                <div className="flex h-11 w-11 items-center justify-center rounded-lg bg-accent transition-colors group-hover:bg-[#c8e4e2]">
                   <FileText className="w-6 h-6 text-primary" />
                 </div>
-                <Plus className="w-5 h-5 text-muted-foreground group-hover:text-primary transition-colors" />
+                <Plus className="h-5 w-5 text-muted-foreground transition-colors group-hover:text-primary" />
               </div>
               <CardTitle className="text-xl">Generate Proposal</CardTitle>
               <CardDescription>
-                Create a professional proposal with AI-powered content tailored to your client's needs
+                Turn client context into a structured scope, delivery plan, and commercial proposal.
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <Button asChild className="w-full bg-primary hover:bg-primary/90">
+              <Button asChild className="w-full">
                 <Link href="/generate/proposal">Start New Proposal</Link>
               </Button>
             </CardContent>
           </Card>
 
-          <Card className="border-border bg-card hover:shadow-lg transition-shadow cursor-pointer group">
+          <Card className="group border-border bg-card transition-colors hover:border-primary/50">
             <CardHeader className="pb-4">
               <div className="flex items-center justify-between">
-                <div className="w-12 h-12 bg-accent/10 rounded-lg flex items-center justify-center group-hover:bg-accent/20 transition-colors">
-                  <PresentationChart className="w-6 h-6 text-accent" />
+                <div className="flex h-11 w-11 items-center justify-center rounded-lg bg-accent transition-colors group-hover:bg-[#c8e4e2]">
+                  <PresentationChart className="h-6 w-6 text-primary" />
                 </div>
-                <Plus className="w-5 h-5 text-muted-foreground group-hover:text-accent transition-colors" />
+                <Plus className="h-5 w-5 text-muted-foreground transition-colors group-hover:text-primary" />
               </div>
               <CardTitle className="text-xl">Generate Pitch Deck</CardTitle>
               <CardDescription>
-                Build a compelling pitch deck that tells your startup's story and attracts investors
+                Shape company, market, traction, and funding context into an investor-ready narrative.
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <Button asChild className="w-full bg-accent hover:bg-accent/90 text-accent-foreground">
+              <Button asChild variant="outline" className="w-full">
                 <Link href="/generate/pitch-deck">Start New Pitch Deck</Link>
               </Button>
             </CardContent>
@@ -287,7 +246,7 @@ function DashboardContent({ session, recentDocuments, stats, subscription, loadE
               <Card className="border-primary/20 bg-primary/5">
                 <CardHeader className="pb-4">
                   <CardTitle className="text-lg flex items-center gap-2">
-                    <Zap className="w-5 h-5 text-primary" />
+                    <CreditCard className="w-5 h-5 text-primary" />
                     Upgrade to Pro
                   </CardTitle>
                   <CardDescription>Unlock unlimited documents and premium features</CardDescription>
@@ -302,7 +261,7 @@ function DashboardContent({ session, recentDocuments, stats, subscription, loadE
               <Card className="border-border bg-muted/30">
                 <CardHeader className="pb-4">
                   <CardTitle className="text-lg flex items-center gap-2">
-                    <Zap className="w-5 h-5 text-muted-foreground" />
+                    <CreditCard className="w-5 h-5 text-muted-foreground" />
                     Paid plans staged
                   </CardTitle>
                   <CardDescription>Billing is disabled in this deployment; your free workspace remains available.</CardDescription>
@@ -317,7 +276,7 @@ function DashboardContent({ session, recentDocuments, stats, subscription, loadE
               <Card className="border-primary/20 bg-primary/5">
                 <CardHeader className="pb-4">
                   <CardTitle className="text-lg flex items-center gap-2">
-                    <Zap className="w-5 h-5 text-primary" />
+                    <CreditCard className="w-5 h-5 text-primary" />
                     {plan?.name || "Workspace"} workspace
                   </CardTitle>
                   <CardDescription>Your current plan is reflected in usage limits and account settings.</CardDescription>
@@ -355,7 +314,7 @@ function DashboardContent({ session, recentDocuments, stats, subscription, loadE
                             {doc.type === "proposal" ? (
                               <FileText className="w-5 h-5 text-primary" />
                             ) : (
-                              <PresentationChart className="w-5 h-5 text-accent" />
+                              <PresentationChart className="w-5 h-5 text-primary" />
                             )}
                           </div>
                           <div>
@@ -414,7 +373,6 @@ function DashboardContent({ session, recentDocuments, stats, subscription, loadE
             </Card>
           </div>
         </div>
-      </div>
-    </div>
+    </WorkspaceShell>
   )
 }

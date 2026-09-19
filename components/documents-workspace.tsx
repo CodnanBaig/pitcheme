@@ -11,7 +11,6 @@ import {
   PresentationIcon as PresentationChart,
   Search,
   Trash2,
-  Zap,
   AlertCircle,
 } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
@@ -20,8 +19,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { cn } from "@/lib/utils"
-import { AuthButton } from "@/components/auth-button"
-import { MobileNav } from "@/components/mobile-nav"
+import { WorkspaceShell } from "@/components/workspace-shell"
+import { PageHeading } from "@/components/page-heading"
 
 export type DocumentListItem = {
   id: string
@@ -138,50 +137,22 @@ export function DocumentsWorkspace({ documents: initialDocuments, hasMore: initi
   }
 
   return (
-    <div className="min-h-screen bg-background">
-      <header className="border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-        <div className="container mx-auto flex h-16 items-center justify-between px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center gap-2">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary">
-              <Zap className="h-5 w-5 text-primary-foreground" />
-            </div>
-            <span className="text-xl font-bold text-foreground">PitchGenie</span>
-          </div>
-          <nav className="hidden items-center gap-8 md:flex">
-            <Link href="/dashboard" className="text-muted-foreground transition-colors hover:text-foreground">Dashboard</Link>
-            <Link href="/documents" className="font-medium text-foreground">Documents</Link>
-            <Link href="/settings" className="text-muted-foreground transition-colors hover:text-foreground">Settings</Link>
-          </nav>
-          <div className="flex items-center gap-2 sm:gap-4">
-            <Badge variant="secondary" className="hidden sm:flex">{loadError ? "Plan unavailable" : `${planName} Plan`}</Badge>
-            <MobileNav
-              items={[
-                { href: "/dashboard", label: "Dashboard" },
-                { href: "/documents", label: "Documents" },
-                { href: "/settings", label: "Settings" },
-              ]}
-            />
-            <AuthButton />
-          </div>
-        </div>
-      </header>
-
-      <main className="container mx-auto px-4 py-8 sm:px-6 lg:px-8">
-        <div className="mb-8 flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
-          <div>
-            <p className="mb-2 text-xs font-semibold uppercase tracking-[0.18em] text-primary">Workspace</p>
-            <h1 className="mb-2 text-3xl font-bold text-foreground">Documents</h1>
-            <p className="text-muted-foreground">Manage proposals and pitch decks with clear ownership and export actions.</p>
-          </div>
-          <div className="flex gap-2">
+    <WorkspaceShell active="documents" planName={loadError ? "Plan unavailable" : `${planName} plan`}>
+        <PageHeading
+          eyebrow="Document workspace"
+          title="Documents"
+          description="Manage proposals and pitch decks with clear ownership, version history, and delivery actions."
+          actions={
+            <>
             <Button variant="outline" asChild>
               <Link href="/generate/proposal"><FileText className="mr-2 h-4 w-4" />New Proposal</Link>
             </Button>
             <Button asChild>
               <Link href="/generate/pitch-deck"><PresentationChart className="mr-2 h-4 w-4" />New Pitch Deck</Link>
             </Button>
-          </div>
-        </div>
+            </>
+          }
+        />
 
         {loadError && (
           <Card role="alert" className="mb-6 border-destructive/30 bg-destructive/5">
@@ -264,7 +235,7 @@ export function DocumentsWorkspace({ documents: initialDocuments, hasMore: initi
                   <div key={document.id} className="flex flex-col gap-4 rounded-lg border border-border p-4 transition-colors hover:bg-muted/50 sm:flex-row sm:items-center sm:justify-between">
                     <div className="flex min-w-0 items-center gap-4">
                       <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-primary/10">
-                        {document.type === "proposal" ? <FileText className="h-6 w-6 text-primary" /> : <PresentationChart className="h-6 w-6 text-accent" />}
+                        {document.type === "proposal" ? <FileText className="h-6 w-6 text-primary" /> : <PresentationChart className="h-6 w-6 text-primary" />}
                       </div>
                       <div className="min-w-0">
                         <h3 className="truncate font-medium text-foreground">{document.projectTitle || document.clientName || "Untitled Document"}</h3>
@@ -307,7 +278,6 @@ export function DocumentsWorkspace({ documents: initialDocuments, hasMore: initi
             )}
           </CardContent>
         </Card>
-      </main>
-    </div>
+    </WorkspaceShell>
   )
 }

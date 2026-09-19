@@ -60,7 +60,7 @@ export function ExportButton({ documentId, documentType, documentTitle }: Export
       <Button
         onClick={() => handleExport("pdf")}
         disabled={isExporting}
-        className="bg-accent hover:bg-accent/90 text-accent-foreground"
+        className="bg-primary text-primary-foreground hover:bg-[#0b6262]"
       >
         {isExporting ? (
           <>

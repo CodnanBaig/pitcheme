@@ -1,6 +1,13 @@
 import { expect, test } from "@playwright/test"
 
 test.describe("credentials journey", () => {
+  test("keeps public sign-in and account-creation actions distinct", async ({ page }) => {
+    await page.goto("/")
+
+    await expect(page.getByRole("link", { name: "Sign In", exact: true })).toHaveAttribute("href", "/auth/signin")
+    await expect(page.getByRole("link", { name: "Get Started", exact: true })).toHaveAttribute("href", "/auth/signup")
+  })
+
   test("redirects unauthenticated visitors away from protected routes", async ({ page }) => {
     await page.goto("/dashboard")
 
