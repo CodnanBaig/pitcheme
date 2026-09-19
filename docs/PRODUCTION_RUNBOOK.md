@@ -52,7 +52,8 @@ request.
 
 Set `CHROMIUM_EXECUTABLE_PATH` for the deployment's Chromium binary. The older
 `PUPPETEER_EXECUTABLE_PATH` name remains a compatibility fallback only; do not
-use it for new deployment configuration.
+use it for new deployment configuration. Vercel deployments use the bundled
+`@sparticuz/chromium` runtime automatically when neither path is configured.
 
 `BRAND_LAB_ENABLED` defaults to disabled in production. Keep it unset or set to
 `false` for customer-facing deployments so the internal visual-direction
@@ -240,6 +241,15 @@ docker run --env-file .env.production -p 3000:3000 pitchgenie
 CI uses an explicit Docker Buildx builder and loads the image before the
 container smoke test; this avoids relying on a runner's legacy `docker build`
 implementation.
+
+### Vercel deployment
+
+Vercel uses the bundled `@sparticuz/chromium` binary for PDF exports and the
+readiness probe. Leave `CHROMIUM_EXECUTABLE_PATH` and
+`PUPPETEER_EXECUTABLE_PATH` unset there; the runtime resolves and extracts the
+matching headless binary automatically. Keep `HEALTHCHECK_EXPORT_RUNTIME=true`
+so a deployment cannot become ready when extraction or execution support is
+unavailable.
 
 The Dockerfile uses `corepack install` after copying `package.json`, so the
 image resolves the integrity-qualified pnpm version declared by the repository

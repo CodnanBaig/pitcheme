@@ -128,6 +128,7 @@ describe("production readiness contracts", () => {
 
   it("keeps Chromium export operations inside the route budget", () => {
     const timeout = fs.readFileSync(path.join(process.cwd(), "lib/export-timeout.ts"), "utf8")
+    const chromiumRuntime = fs.readFileSync(path.join(process.cwd(), "lib/chromium-runtime.ts"), "utf8")
     const proposalRoute = fs.readFileSync(path.join(process.cwd(), "app/api/export/proposal/[id]/route.ts"), "utf8")
     const pitchDeckRoute = fs.readFileSync(path.join(process.cwd(), "app/api/export/pitch-deck/[id]/route.ts"), "utf8")
 
@@ -136,11 +137,12 @@ describe("production readiness contracts", () => {
     expect(timeout).toContain("withExportTimeout")
     expect(timeout).toContain("throwIfExportAborted")
     for (const source of [proposalRoute, pitchDeckRoute]) {
-      expect(source).toContain("timeout: EXPORT_LAUNCH_TIMEOUT_MS")
+      expect(source).toContain("createChromiumLaunchOptions(EXPORT_LAUNCH_TIMEOUT_MS)")
       expect(source).toContain("withExportTimeout(page.pdf")
       expect(source).toContain("signal: request.signal")
       expect(source).toContain("status: 499")
     }
+    expect(chromiumRuntime).toContain("timeout,")
   })
 
   it("coalesces repeated external readiness probes", () => {
@@ -489,11 +491,17 @@ describe("production readiness contracts", () => {
     const envExample = fs.readFileSync(path.join(process.cwd(), ".env.example"), "utf8")
     const readme = fs.readFileSync(path.join(process.cwd(), "README.md"), "utf8")
     const runbook = fs.readFileSync(path.join(process.cwd(), "docs/PRODUCTION_RUNBOOK.md"), "utf8")
+    const packageJson = fs.readFileSync(path.join(process.cwd(), "package.json"), "utf8")
+    const chromiumRuntime = fs.readFileSync(path.join(process.cwd(), "lib/chromium-runtime.ts"), "utf8")
 
     expect(envExample).toContain('CHROMIUM_EXECUTABLE_PATH=""')
     expect(envExample).toContain('PUPPETEER_EXECUTABLE_PATH=""')
     expect(readme).toContain("use `CHROMIUM_EXECUTABLE_PATH` for new configuration")
     expect(runbook).toContain("compatibility fallback only")
+    expect(runbook).toContain("Vercel uses the bundled `@sparticuz/chromium`")
+    expect(packageJson).toContain('"@sparticuz/chromium"')
+    expect(chromiumRuntime).toContain('process.env.VERCEL === "1"')
+    expect(chromiumRuntime).toContain("serverlessChromium.executablePath()")
   })
 
   it("connects critical route failures to bounded operational telemetry", () => {

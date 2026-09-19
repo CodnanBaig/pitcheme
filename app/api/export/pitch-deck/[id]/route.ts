@@ -11,6 +11,7 @@ import { recordProductEvent } from "@/lib/product-events"
 import { sendOperationalErrorTelemetry } from "@/lib/error-monitoring"
 import { acquireExportConcurrencySlot } from "@/lib/export-concurrency"
 import { EXPORT_LAUNCH_TIMEOUT_MS, EXPORT_RENDER_TIMEOUT_MS, throwIfExportAborted, withExportTimeout } from "@/lib/export-timeout"
+import { createChromiumLaunchOptions } from "@/lib/chromium-runtime"
 
 export const runtime = "nodejs"
 export const maxDuration = 60
@@ -93,16 +94,8 @@ export async function GET(
     }
     throwIfExportAborted(request.signal)
 
-    // Generate PDF with slide-like formatting using deployment Chromium.
-    const launchOptions: Parameters<typeof chromium.launch>[0] = {
-      headless: true,
-      timeout: EXPORT_LAUNCH_TIMEOUT_MS,
-      args: ["--no-sandbox", "--disable-setuid-sandbox"],
-    }
-    const executablePath = process.env.CHROMIUM_EXECUTABLE_PATH?.trim() || process.env.PUPPETEER_EXECUTABLE_PATH?.trim()
-    if (executablePath) {
-      launchOptions.executablePath = executablePath
-    }
+    // Use a configured system browser or the Vercel-compatible serverless runtime.
+    const launchOptions = await createChromiumLaunchOptions(EXPORT_LAUNCH_TIMEOUT_MS)
     browser = await chromium.launch(launchOptions)
 
     const page = await browser.newPage()

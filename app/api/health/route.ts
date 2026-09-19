@@ -1,4 +1,5 @@
 import fs from "node:fs"
+import { resolveChromiumExecutablePath } from "@/lib/chromium-runtime"
 import { type NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
 import { getRuntimeEnvironmentStatus } from "@/lib/env"
@@ -348,7 +349,7 @@ async function checkExportRuntime(): Promise<HealthCheck> {
   }
 
   try {
-    const executablePath = process.env.CHROMIUM_EXECUTABLE_PATH?.trim() || process.env.PUPPETEER_EXECUTABLE_PATH?.trim()
+    const executablePath = await resolveChromiumExecutablePath()
     if (!executablePath || !fs.statSync(executablePath).isFile()) {
       return {
         status: "unhealthy",
