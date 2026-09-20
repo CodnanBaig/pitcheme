@@ -2,7 +2,7 @@ import { redirect } from "next/navigation"
 import Link from "next/link"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/auth"
-import { getUserSubscription, getUserUsage } from "@/lib/subscription"
+import { getCachedUserSubscription, getUserUsage } from "@/lib/subscription"
 import { isStripeBillingEnabled, STRIPE_PLANS } from "@/lib/stripe"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -19,7 +19,7 @@ export default async function BillingPage() {
     redirect("/auth/signin")
   }
 
-  const subscription = await getUserSubscription(session.user.id)
+  const subscription = await getCachedUserSubscription(session.user.id)
   const usage = await getUserUsage(session.user.id)
   const planKey = (subscription?.plan) || "FREE"
   const plan = STRIPE_PLANS[planKey]

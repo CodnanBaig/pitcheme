@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge"
 import { User, CreditCard, Bell, Shield, Crown } from "lucide-react"
 import Link from "next/link"
 import { ProfileSettingsForm } from "@/components/profile-settings-form"
-import { getUserSubscription, getUserUsage } from "@/lib/subscription"
+import { getCachedUserSubscription, getUserUsage } from "@/lib/subscription"
 import { STRIPE_PLANS } from "@/lib/stripe"
 import { PageHeading } from "@/components/page-heading"
 
@@ -22,7 +22,7 @@ export default async function SettingsPage() {
   }
 
   const [subscription, usage] = await Promise.all([
-    getUserSubscription(session.user.id),
+    getCachedUserSubscription(session.user.id),
     getUserUsage(session.user.id),
   ])
   const planKey = subscription?.plan || "FREE"

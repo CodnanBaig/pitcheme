@@ -10,7 +10,7 @@ jest.mock("@/lib/prisma", () => ({
   },
 }))
 jest.mock("@/lib/subscription", () => ({
-  getUserSubscription: jest.fn(),
+  getCachedUserSubscription: jest.fn(),
   getUserUsage: jest.fn(),
 }))
 
@@ -18,12 +18,12 @@ import { render, screen } from "@testing-library/react"
 import { auth } from "@/auth"
 import DashboardPage from "@/app/(workspace)/dashboard/page"
 import { prisma } from "@/lib/prisma"
-import { getUserSubscription, getUserUsage } from "@/lib/subscription"
+import { getCachedUserSubscription, getUserUsage } from "@/lib/subscription"
 
 const mockAuth = auth as jest.MockedFunction<typeof auth>
 const mockFindMany = prisma.document.findMany as jest.MockedFunction<typeof prisma.document.findMany>
 const mockCount = prisma.document.count as jest.MockedFunction<typeof prisma.document.count>
-const mockGetSubscription = getUserSubscription as jest.MockedFunction<typeof getUserSubscription>
+const mockGetSubscription = getCachedUserSubscription as jest.MockedFunction<typeof getCachedUserSubscription>
 const mockGetUsage = getUserUsage as jest.MockedFunction<typeof getUserUsage>
 
 describe("Dashboard billing messaging", () => {

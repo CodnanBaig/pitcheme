@@ -2,14 +2,14 @@ import { Suspense, type ReactNode } from "react"
 import { redirect } from "next/navigation"
 import { auth } from "@/auth"
 import { WorkspaceShell } from "@/components/workspace-shell"
-import { getUserSubscription } from "@/lib/subscription"
+import { getCachedUserSubscription } from "@/lib/subscription"
 import { STRIPE_PLANS } from "@/lib/stripe"
 
 export const runtime = "nodejs"
 
 async function WorkspacePlan({ userId }: { userId: string }) {
   try {
-    const subscription = await getUserSubscription(userId)
+    const subscription = await getCachedUserSubscription(userId)
     const plan = STRIPE_PLANS[subscription?.plan || "FREE"] || STRIPE_PLANS.FREE
     return `${plan.name} plan`
   } catch {

@@ -1,4 +1,5 @@
 import { Prisma } from "@prisma/client"
+import { cache } from "react"
 import {
   STRIPE_PLANS,
   normalizeStripeSubscriptionStatus,
@@ -91,6 +92,10 @@ export async function getUserSubscription(userId: string): Promise<UserSubscript
     updatedAt: subscription.updatedAt,
   }
 }
+
+// Workspace layouts and pages render concurrently. Share the subscription
+// lookup within a server render so a new account is not initialized twice.
+export const getCachedUserSubscription = cache(getUserSubscription)
 
 function stripeEventDate(created?: number): Date | undefined {
   if (created === undefined) return undefined

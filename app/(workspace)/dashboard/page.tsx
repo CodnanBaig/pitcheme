@@ -17,7 +17,7 @@ import {
 } from "lucide-react"
 import Link from "next/link"
 import { prisma } from "@/lib/prisma"
-import { getUserSubscription, getUserUsage } from "@/lib/subscription"
+import { getCachedUserSubscription, getUserUsage } from "@/lib/subscription"
 import { isStripeBillingEnabled, STRIPE_PLANS } from "@/lib/stripe"
 import { getServerRequestId, reportServerRouteError } from "@/lib/server-error-telemetry"
 import { PageHeading } from "@/components/page-heading"
@@ -52,7 +52,7 @@ export default async function DashboardPage() {
     })
 
     // Fetch subscription and usage data
-    const subscription = await getUserSubscription(session.user.id)
+    const subscription = await getCachedUserSubscription(session.user.id)
     const usage = await getUserUsage(session.user.id)
 
     // Calculate stats
