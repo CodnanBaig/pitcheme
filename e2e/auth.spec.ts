@@ -25,7 +25,7 @@ test.describe("credentials journey", () => {
     await expect(page.getByText("Invalid email or password", { exact: true })).toBeVisible()
   })
 
-  test("registers, signs in, opens the account menu, and signs out", async ({ page }) => {
+  test("registers, navigates without remounting the workspace, and signs out", async ({ page }) => {
     const uniqueEmail = `e2e-${Date.now()}-${test.info().workerIndex}@example.com`
     const password = "TestPassword!123"
     await page.setExtraHTTPHeaders({ "x-forwarded-for": "198.51.100.241" })
@@ -43,6 +43,39 @@ test.describe("credentials journey", () => {
 
     await expect(page).toHaveURL(/\/dashboard$/)
     await expect(page.getByRole("heading", { name: /Welcome back, E2E!/ })).toBeVisible()
+
+    const workspaceNavigation = page.getByRole("navigation", { name: "Workspace navigation" })
+    const workspaceShell = page.locator("aside").filter({ has: workspaceNavigation })
+    await workspaceShell.evaluate((element) => element.setAttribute("data-navigation-shell", "persistent"))
+
+    await workspaceNavigation.getByRole("link", { name: "Documents" }).click()
+    await expect(page).toHaveURL(/\/documents$/)
+    await expect(page.getByRole("heading", { name: "Documents", exact: true })).toBeVisible()
+    await expect(workspaceShell).toHaveAttribute("data-navigation-shell", "persistent")
+    await expect(workspaceNavigation.getByRole("link", { name: "Documents" })).toHaveAttribute("aria-current", "page")
+
+    await workspaceNavigation.getByRole("link", { name: "New proposal" }).click()
+    await expect(page).toHaveURL(/\/generate\/proposal$/)
+    await expect(page.getByRole("heading", { name: "Generate Proposal" })).toBeVisible()
+    await expect(page.getByRole("heading", { name: "Select Your Industry" })).toBeVisible()
+    await expect(page.getByLabel("Loading generation form")).toHaveCount(0)
+    await expect(workspaceShell).toHaveAttribute("data-navigation-shell", "persistent")
+
+    await workspaceNavigation.getByRole("link", { name: "New pitch deck" }).click()
+    await expect(page).toHaveURL(/\/generate\/pitch-deck$/)
+    await expect(page.getByRole("heading", { name: "Generate Pitch Deck" })).toBeVisible()
+    await expect(page.getByRole("heading", { name: "Select Your Industry" })).toBeVisible()
+    await expect(page.getByLabel("Loading generation form")).toHaveCount(0)
+    await expect(workspaceShell).toHaveAttribute("data-navigation-shell", "persistent")
+
+    await workspaceNavigation.getByRole("link", { name: "Overview" }).click()
+    await expect(page).toHaveURL(/\/dashboard$/)
+    await expect(workspaceShell).toHaveAttribute("data-navigation-shell", "persistent")
+
+    await page.reload()
+    await expect(page.getByRole("button", { name: "E", exact: true })).toBeVisible()
+    await expect(page.getByRole("link", { name: "Sign In", exact: true })).toHaveCount(0)
+    await expect(page.getByRole("link", { name: "Get Started", exact: true })).toHaveCount(0)
 
     await page.getByRole("button", { name: "E", exact: true }).click()
     await expect(page.getByRole("menuitem", { name: "Sign out" })).toBeVisible()

@@ -9,7 +9,6 @@ import { Edit, FileText } from "lucide-react"
 import Link from "next/link"
 import { prisma } from "@/lib/prisma"
 import { isMongoObjectId } from "@/lib/mongo-id"
-import { WorkspaceShell } from "@/components/workspace-shell"
 
 export const runtime = "nodejs"
 
@@ -60,7 +59,7 @@ export default async function ProposalPage({ params }: ProposalPageProps) {
   }
 
   return (
-    <WorkspaceShell active="documents" contentClassName="max-w-5xl">
+    <>
         <div className="mx-auto max-w-4xl">
           {/* Proposal Header */}
           <div className="mb-6 flex flex-col justify-between gap-5 border-b border-border pb-6 sm:flex-row sm:items-end">
@@ -160,6 +159,6 @@ export default async function ProposalPage({ params }: ProposalPageProps) {
             <ExportButton documentId={proposal.id} documentType="proposal" documentTitle={proposal.projectTitle || "Proposal"} />
           </div>
         </div>
-    </WorkspaceShell>
+    </>
   )
 }

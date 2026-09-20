@@ -10,7 +10,6 @@ import Link from "next/link"
 import { ProfileSettingsForm } from "@/components/profile-settings-form"
 import { getUserSubscription, getUserUsage } from "@/lib/subscription"
 import { STRIPE_PLANS } from "@/lib/stripe"
-import { WorkspaceShell } from "@/components/workspace-shell"
 import { PageHeading } from "@/components/page-heading"
 
 export const runtime = "nodejs"
@@ -30,7 +29,7 @@ export default async function SettingsPage() {
   const plan = STRIPE_PLANS[planKey] || STRIPE_PLANS.FREE
 
   return (
-    <WorkspaceShell active="settings" planName={`${plan.name} plan`}>
+    <>
         <PageHeading
           eyebrow="Account administration"
           title="Settings"
@@ -151,6 +150,6 @@ export default async function SettingsPage() {
             </Card>
           </div>
         </div>
-    </WorkspaceShell>
+    </>
   )
 }

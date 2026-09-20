@@ -1,5 +1,8 @@
+"use client"
+
 import type { ReactNode } from "react"
 import Link from "next/link"
+import { usePathname } from "next/navigation"
 import {
   FilePlus2,
   Files,
@@ -15,10 +18,26 @@ import { cn } from "@/lib/utils"
 export type WorkspaceRoute = "dashboard" | "documents" | "proposal" | "pitch-deck" | "settings" | "billing" | "editor"
 
 type WorkspaceShellProps = {
-  active: WorkspaceRoute
+  active?: WorkspaceRoute
   children: ReactNode
-  planName?: string
+  planName?: ReactNode
   contentClassName?: string
+}
+
+function workspaceRoute(pathname: string): WorkspaceRoute {
+  if (pathname === "/dashboard") return "dashboard"
+  if (pathname.startsWith("/generate/proposal")) return "proposal"
+  if (pathname.startsWith("/generate/pitch-deck")) return "pitch-deck"
+  if (pathname.startsWith("/documents/") && pathname.endsWith("/edit")) return "editor"
+  if (pathname.startsWith("/documents") || pathname.startsWith("/proposal/") || pathname.startsWith("/pitch-deck/")) return "documents"
+  if (pathname.startsWith("/billing")) return "billing"
+  return "settings"
+}
+
+function workspaceWidth(pathname: string): string | undefined {
+  if (pathname.startsWith("/documents/") && pathname.endsWith("/edit")) return "max-w-6xl"
+  if (pathname.startsWith("/billing") || pathname.startsWith("/proposal/") || pathname.startsWith("/pitch-deck/")) return "max-w-5xl"
+  return undefined
 }
 
 const navGroups = [
@@ -47,6 +66,10 @@ const navGroups = [
 const mobileItems = navGroups.flatMap((group) => group.items.map(({ href, label }) => ({ href, label })))
 
 export function WorkspaceShell({ active, children, planName, contentClassName }: WorkspaceShellProps) {
+  const pathname = usePathname()
+  const resolvedActive = active ?? workspaceRoute(pathname)
+  const resolvedContentClassName = contentClassName ?? workspaceWidth(pathname)
+
   return (
     <div className="min-h-screen bg-background">
       <aside className="fixed inset-y-0 left-0 z-40 hidden w-64 flex-col bg-[#0d1b2a] text-white md:flex">
@@ -59,7 +82,7 @@ export function WorkspaceShell({ active, children, planName, contentClassName }:
               <p className="mb-2 px-3 text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400">{group.label}</p>
               <div className="space-y-1">
                 {group.items.map((item) => {
-                  const isActive = (item.active as readonly string[]).includes(active)
+                  const isActive = (item.active as readonly string[]).includes(resolvedActive)
                   const Icon = item.icon
                   return (
                     <Link
@@ -100,7 +123,7 @@ export function WorkspaceShell({ active, children, planName, contentClassName }:
             <AuthButton />
           </div>
         </header>
-        <main className={cn("mx-auto w-full max-w-[1440px] p-4 sm:p-6 lg:p-8", contentClassName)}>{children}</main>
+        <main className={cn("mx-auto w-full max-w-[1440px] p-4 sm:p-6 lg:p-8", resolvedContentClassName)}>{children}</main>
       </div>
     </div>
   )

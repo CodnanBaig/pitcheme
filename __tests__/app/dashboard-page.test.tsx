@@ -16,7 +16,7 @@ jest.mock("@/lib/subscription", () => ({
 
 import { render, screen } from "@testing-library/react"
 import { auth } from "@/auth"
-import DashboardPage from "@/app/dashboard/page"
+import DashboardPage from "@/app/(workspace)/dashboard/page"
 import { prisma } from "@/lib/prisma"
 import { getUserSubscription, getUserUsage } from "@/lib/subscription"
 

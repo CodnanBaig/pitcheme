@@ -97,13 +97,13 @@ describe("production readiness contracts", () => {
 
   it("pins Prisma-backed server pages to the Node runtime", () => {
     for (const pageFile of [
-      "app/dashboard/page.tsx",
-      "app/documents/page.tsx",
-      "app/documents/[id]/edit/page.tsx",
-      "app/proposal/[id]/page.tsx",
-      "app/pitch-deck/[id]/page.tsx",
-      "app/settings/page.tsx",
-      "app/billing/page.tsx",
+      "app/(workspace)/dashboard/page.tsx",
+      "app/(workspace)/documents/page.tsx",
+      "app/(workspace)/documents/[id]/edit/page.tsx",
+      "app/(workspace)/proposal/[id]/page.tsx",
+      "app/(workspace)/pitch-deck/[id]/page.tsx",
+      "app/(workspace)/settings/page.tsx",
+      "app/(workspace)/billing/page.tsx",
       "app/share/[token]/page.tsx",
     ]) {
       const source = fs.readFileSync(path.join(process.cwd(), pageFile), "utf8")
@@ -418,9 +418,12 @@ describe("production readiness contracts", () => {
       expect(fs.existsSync(path.join(process.cwd(), supersededFile))).toBe(false)
     }
 
-    const generationShell = fs.readFileSync(path.join(process.cwd(), "components/generation-form-shell.tsx"), "utf8")
-    expect(generationShell).toContain("enhanced-proposal-form")
-    expect(generationShell).toContain("enhanced-pitch-deck-form")
+    const proposalPage = fs.readFileSync(path.join(process.cwd(), "app/(workspace)/generate/proposal/page.tsx"), "utf8")
+    const pitchDeckPage = fs.readFileSync(path.join(process.cwd(), "app/(workspace)/generate/pitch-deck/page.tsx"), "utf8")
+    expect(proposalPage).toContain("enhanced-proposal-form")
+    expect(pitchDeckPage).toContain("enhanced-pitch-deck-form")
+    expect(proposalPage).not.toContain("ssr: false")
+    expect(pitchDeckPage).not.toContain("ssr: false")
   })
 
   it("keeps landing-page pricing aligned with the billing release flag", () => {

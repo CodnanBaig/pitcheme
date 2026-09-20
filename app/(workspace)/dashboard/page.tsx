@@ -20,7 +20,6 @@ import { prisma } from "@/lib/prisma"
 import { getUserSubscription, getUserUsage } from "@/lib/subscription"
 import { isStripeBillingEnabled, STRIPE_PLANS } from "@/lib/stripe"
 import { getServerRequestId, reportServerRouteError } from "@/lib/server-error-telemetry"
-import { WorkspaceShell } from "@/components/workspace-shell"
 import { PageHeading } from "@/components/page-heading"
 
 export const runtime = "nodejs"
@@ -131,7 +130,7 @@ function DashboardContent({ session, recentDocuments, stats, subscription, loadE
   const billingEnabled = isStripeBillingEnabled()
 
   return (
-    <WorkspaceShell active="dashboard" planName={plan ? `${plan.name} plan` : "Plan unavailable"}>
+    <>
         <PageHeading
           eyebrow="Workspace overview"
           title={`Welcome back, ${session.user?.name?.split(" ")[0] || "there"}!`}
@@ -373,6 +372,6 @@ function DashboardContent({ session, recentDocuments, stats, subscription, loadE
             </Card>
           </div>
         </div>
-    </WorkspaceShell>
+    </>
   )
 }

@@ -10,7 +10,6 @@ import Link from "next/link"
 import { prisma } from "@/lib/prisma"
 import { sanitizeGeneratedHtml } from "@/lib/sanitize-html"
 import { isMongoObjectId } from "@/lib/mongo-id"
-import { WorkspaceShell } from "@/components/workspace-shell"
 
 export const runtime = "nodejs"
 
@@ -218,7 +217,7 @@ export default async function PitchDeckPage({ params }: PitchDeckPageProps) {
   }
 
   return (
-    <WorkspaceShell active="documents" contentClassName="max-w-5xl">
+    <>
       {/* Add styles for pitch deck rendering */}
       <style dangerouslySetInnerHTML={{ __html: pitchDeckStyles }} />
         <div className="max-w-4xl mx-auto">
@@ -327,6 +326,6 @@ export default async function PitchDeckPage({ params }: PitchDeckPageProps) {
             />
           </div>
         </div>
-    </WorkspaceShell>
+    </>
   )
 }

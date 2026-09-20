@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation"
+import Link from "next/link"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/auth"
 import { getUserSubscription, getUserUsage } from "@/lib/subscription"
@@ -8,7 +9,6 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge"
 import { Progress } from "@/components/ui/progress"
 import { ManageSubscriptionButton } from "@/components/manage-subscription-button"
-import { WorkspaceShell } from "@/components/workspace-shell"
 import { PageHeading } from "@/components/page-heading"
 
 export const runtime = "nodejs"
@@ -26,7 +26,7 @@ export default async function BillingPage() {
   const billingEnabled = isStripeBillingEnabled()
 
   return (
-    <WorkspaceShell active="billing" planName={`${plan.name} plan`} contentClassName="max-w-5xl">
+    <>
       <PageHeading
         eyebrow="Account administration"
         title="Billing & Usage"
@@ -116,7 +116,7 @@ export default async function BillingPage() {
                   Upgrade to Pro for unlimited document generation and premium features.
                 </p>
                 <Button asChild className="mt-2 w-full" size="sm">
-                  <a href="/pricing">Upgrade Now</a>
+                    <Link href="/pricing">Upgrade Now</Link>
                 </Button>
               </div>
             ) : planKey === "FREE" ? (
@@ -129,6 +129,6 @@ export default async function BillingPage() {
           </CardContent>
         </Card>
       </div>
-    </WorkspaceShell>
+    </>
   )
 }

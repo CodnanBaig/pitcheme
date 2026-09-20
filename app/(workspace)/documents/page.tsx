@@ -2,8 +2,6 @@ import { auth } from "@/auth"
 import { redirect } from "next/navigation"
 import { prisma } from "@/lib/prisma"
 import { DocumentsWorkspace, type DocumentListItem } from "@/components/documents-workspace"
-import { getUserSubscription } from "@/lib/subscription"
-import { STRIPE_PLANS } from "@/lib/stripe"
 import { getServerRequestId, reportServerRouteError } from "@/lib/server-error-telemetry"
 
 export const runtime = "nodejs"
@@ -35,12 +33,8 @@ export default async function DocumentsPage() {
       take: 101,
     })
     const hasMore = documents.length > 100
-    const subscription = await getUserSubscription(session.user.id)
-    const plan = STRIPE_PLANS[subscription?.plan || "FREE"] || STRIPE_PLANS.FREE
-
     return <DocumentsWorkspace
       user={{ name: session.user?.name, email: session.user?.email }}
-      planName={plan.name}
       hasMore={hasMore}
       documents={documents.slice(0, 100).map((document): DocumentListItem => ({
         id: document.id,

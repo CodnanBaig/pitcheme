@@ -1,52 +1,32 @@
-import { auth } from "@/auth"
-import { redirect } from "next/navigation"
-import { ProposalFormShell } from "@/components/generation-form-shell"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { EnhancedProposalForm } from "@/components/enhanced-proposal-form"
+import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { FileText, CheckCircle } from "lucide-react"
-import { getUserSubscription } from "@/lib/subscription"
-import { STRIPE_PLANS } from "@/lib/stripe"
-import { WorkspaceShell } from "@/components/workspace-shell"
 import { PageHeading } from "@/components/page-heading"
 
-export default async function GenerateProposalPage() {
-  const session = await auth()
-
-  if (!session) {
-    redirect("/auth/signin")
-  }
-
-  const subscription = await getUserSubscription(session.user.id)
-  const plan = STRIPE_PLANS[subscription?.plan || "FREE"] || STRIPE_PLANS.FREE
-
+export default function GenerateProposalPage() {
   return (
-    <WorkspaceShell active="proposal" planName={`${plan.name} plan`}>
+    <>
           <PageHeading
             eyebrow="New business document"
             title="Generate Proposal"
             description="Capture the client, scope, timing, and commercial context needed for a structured first draft."
           />
 
-          <div className="grid lg:grid-cols-4 gap-8">
+          <div className="grid gap-8 xl:grid-cols-[minmax(0,1fr)_17rem]">
             {/* Form */}
-            <div className="lg:col-span-3">
-              <Card className="border-border bg-card">
-                <CardHeader>
-                  <CardTitle>Proposal Details</CardTitle>
-                  <CardDescription>
-                    Fill in the information below and we'll generate a professional proposal for you
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                <ProposalFormShell />
-                </CardContent>
-              </Card>
-            </div>
+            <section aria-labelledby="proposal-brief-heading">
+              <div className="mb-6 border-b border-border pb-4">
+                <h2 id="proposal-brief-heading" className="text-lg font-semibold text-foreground">Proposal brief</h2>
+                <p className="mt-1 text-sm leading-6 text-muted-foreground">Choose the client’s industry, then provide the scope and commercial context.</p>
+              </div>
+              <EnhancedProposalForm />
+            </section>
 
             {/* Info Sidebar */}
-            <div className="lg:col-span-1 space-y-6">
+            <aside>
               <Card className="border-border bg-card">
                 <CardHeader>
-                  <CardTitle className="text-lg">What's Included</CardTitle>
+                  <CardTitle className="text-lg">What you’ll produce</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-3">
                   <div className="flex items-center gap-2">
@@ -74,23 +54,20 @@ export default async function GenerateProposalPage() {
                     <span className="text-sm">Call-to-action</span>
                   </div>
                 </CardContent>
-              </Card>
-
-              <Card className="border-primary/20 bg-accent">
-                <CardHeader>
-                  <CardTitle className="text-lg flex items-center gap-2">
+                <CardFooter className="border-t border-border bg-accent/70 py-5">
+                  <div>
+                    <p className="flex items-center gap-2 text-sm font-semibold text-accent-foreground">
                     <FileText className="w-5 h-5 text-primary" />
                     Structured generation
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <p className="text-sm text-muted-foreground">
-                    Your inputs are organized into a complete first draft that remains editable before delivery.
-                  </p>
-                </CardContent>
+                    </p>
+                    <p className="mt-2 text-sm leading-6 text-accent-foreground">
+                      Your inputs become an editable first draft with a consistent business structure.
+                    </p>
+                  </div>
+                </CardFooter>
               </Card>
-            </div>
+            </aside>
           </div>
-    </WorkspaceShell>
+    </>
   )
 }

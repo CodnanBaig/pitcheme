@@ -173,15 +173,11 @@ export function EnhancedPitchDeckForm() {
       </div>
 
       {step === 'field' && (
-        <Card>
-          <CardContent className="p-6">
-            <FieldSelector
-              selectedField={formData.field}
-              onFieldSelect={handleFieldSelect}
-              documentType="pitch-deck"
-            />
-          </CardContent>
-        </Card>
+        <FieldSelector
+          selectedField={formData.field}
+          onFieldSelect={handleFieldSelect}
+          documentType="pitch-deck"
+        />
       )}
 
       {step === 'form' && fieldConfig && (

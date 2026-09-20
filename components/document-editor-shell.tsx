@@ -2,14 +2,12 @@
 
 import dynamic from "next/dynamic"
 import type { EditableDocument } from "@/components/document-editor"
-import { WorkspaceShell } from "@/components/workspace-shell"
 
 const DocumentEditor = dynamic(
   () => import("@/components/document-editor").then((module) => module.DocumentEditor),
   {
     ssr: false,
     loading: () => (
-      <WorkspaceShell active="editor" contentClassName="max-w-6xl">
       <div aria-busy="true" aria-label="Loading document editor">
         <div className="mx-auto max-w-5xl space-y-8">
           <div className="space-y-3">
@@ -28,7 +26,6 @@ const DocumentEditor = dynamic(
           </div>
         </div>
       </div>
-      </WorkspaceShell>
     ),
   },
 )

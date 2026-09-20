@@ -15,8 +15,7 @@ describe("DocumentsWorkspace degraded state", () => {
 
     expect(screen.getByRole("alert")).toHaveTextContent("Document data is temporarily unavailable.")
     expect(screen.getByRole("heading", { name: "Documents unavailable" })).toBeInTheDocument()
-    expect(screen.getByText("Document data unavailable")).toBeInTheDocument()
-    expect(screen.getByText("Plan unavailable")).toBeInTheDocument()
+    expect(screen.getByText("Unavailable")).toBeInTheDocument()
     expect(screen.getByRole("textbox", { name: "Search documents" })).toBeDisabled()
     expect(screen.getAllByRole("combobox")).toHaveLength(3)
     expect(screen.getAllByRole("combobox").every((control) => (control as HTMLSelectElement).disabled)).toBe(true)

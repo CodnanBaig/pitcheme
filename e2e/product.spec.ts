@@ -109,22 +109,22 @@ test.describe("product journeys", () => {
     await page.goto("/documents")
     await expect(page.getByText("E2E Project Revised", { exact: true })).toBeVisible()
     await page.getByLabel("Search documents").fill("E2E Project Revised")
-    await expect(page.getByText("1 of 1 documents", { exact: true })).toBeVisible()
+    await expect(page.getByText("1 of 1", { exact: true })).toBeVisible()
 
     await page.locator("select").first().selectOption("proposal")
-    await expect(page.getByText("1 of 1 documents", { exact: true })).toBeVisible()
+    await expect(page.getByText("1 of 1", { exact: true })).toBeVisible()
     await page.locator("select").first().selectOption("all")
 
     await page.getByRole("button", { name: "More document actions" }).click()
     await page.getByRole("menuitem", { name: "Duplicate" }).click()
     await expect(page.getByText("Document duplicated", { exact: true })).toBeVisible()
-    await expect(page.getByText("2 of 2 documents", { exact: true })).toBeVisible()
+    await expect(page.getByText("2 of 2", { exact: true })).toBeVisible()
 
     page.once("dialog", (dialog) => dialog.accept())
     await page.getByRole("button", { name: "More document actions" }).last().click()
     await page.getByRole("menuitem", { name: "Delete" }).click()
     await expect(page.getByText("Document deleted", { exact: true })).toBeVisible()
-    await expect(page.getByText("1 of 1 documents", { exact: true })).toBeVisible()
+    await expect(page.getByText("1 of 1", { exact: true })).toBeVisible()
   })
 
   test("generates and renders a pitch deck", async ({ page }) => {

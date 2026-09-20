@@ -1,8 +1,10 @@
 "use client"
 
-import { useMemo, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import Link from "next/link"
+import { useRouter } from "next/navigation"
 import {
+  CalendarDays,
   Download,
   Eye,
   FileText,
@@ -14,12 +16,10 @@ import {
   AlertCircle,
 } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
-import { Button, buttonVariants } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Button } from "@/components/ui/button"
+import { Card, CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
-import { cn } from "@/lib/utils"
-import { WorkspaceShell } from "@/components/workspace-shell"
 import { PageHeading } from "@/components/page-heading"
 
 export type DocumentListItem = {
@@ -53,7 +53,14 @@ function normalizeDocument(value: DocumentListItem & { createdAt: string | Date 
   }
 }
 
-export function DocumentsWorkspace({ documents: initialDocuments, hasMore: initialHasMore = false, planName = "Free", loadError = false }: DocumentsWorkspaceProps) {
+const documentDateFormatter = new Intl.DateTimeFormat("en", {
+  day: "2-digit",
+  month: "short",
+  year: "numeric",
+})
+
+export function DocumentsWorkspace({ documents: initialDocuments, hasMore: initialHasMore = false, loadError = false }: DocumentsWorkspaceProps) {
+  const router = useRouter()
   const [documents, setDocuments] = useState(initialDocuments)
   const [hasMore, setHasMore] = useState(initialHasMore)
   const [nextPage, setNextPage] = useState(initialHasMore ? 2 : 1)
@@ -64,6 +71,12 @@ export function DocumentsWorkspace({ documents: initialDocuments, hasMore: initi
   const [pendingId, setPendingId] = useState<string | null>(null)
   const [message, setMessage] = useState<string | null>(null)
   const [loadingMore, setLoadingMore] = useState(false)
+
+  useEffect(() => {
+    setDocuments(initialDocuments)
+    setHasMore(initialHasMore)
+    setNextPage(initialHasMore ? 2 : 1)
+  }, [initialDocuments, initialHasMore])
 
   async function loadMoreDocuments() {
     setLoadingMore(true)
@@ -103,6 +116,15 @@ export function DocumentsWorkspace({ documents: initialDocuments, hasMore: initi
       })
   }, [dateFilter, documents, query, sort, typeFilter])
 
+  const hasActiveFilters = Boolean(query.trim() || typeFilter !== "all" || dateFilter !== "all" || sort !== "newest")
+
+  function clearFilters() {
+    setQuery("")
+    setTypeFilter("all")
+    setDateFilter("all")
+    setSort("newest")
+  }
+
   async function duplicateDocument(document: DocumentListItem) {
     setPendingId(document.id)
     setMessage(null)
@@ -137,147 +159,183 @@ export function DocumentsWorkspace({ documents: initialDocuments, hasMore: initi
   }
 
   return (
-    <WorkspaceShell active="documents" planName={loadError ? "Plan unavailable" : `${planName} plan`}>
-        <PageHeading
-          eyebrow="Document workspace"
-          title="Documents"
-          description="Manage proposals and pitch decks with clear ownership, version history, and delivery actions."
-          actions={
-            <>
+    <>
+      <PageHeading
+        eyebrow="Document workspace"
+        title="Documents"
+        description="Find, review, and deliver every proposal and pitch deck from one controlled register."
+        actions={
+          <>
             <Button variant="outline" asChild>
               <Link href="/generate/proposal"><FileText className="mr-2 h-4 w-4" />New Proposal</Link>
             </Button>
             <Button asChild>
               <Link href="/generate/pitch-deck"><PresentationChart className="mr-2 h-4 w-4" />New Pitch Deck</Link>
             </Button>
-            </>
-          }
-        />
+          </>
+        }
+      />
 
-        {loadError && (
-          <Card role="alert" className="mb-6 border-destructive/30 bg-destructive/5">
-            <CardContent className="flex flex-col gap-4 p-5 sm:flex-row sm:items-center sm:justify-between">
-              <div className="flex items-start gap-3">
-                <AlertCircle className="mt-0.5 h-5 w-5 shrink-0 text-destructive" aria-hidden="true" />
-                <div>
-                  <p className="font-medium text-foreground">Document data is temporarily unavailable.</p>
-                  <p className="mt-1 text-sm text-muted-foreground">
-                    Your saved documents are safe. Retry the workspace once the database connection recovers.
-                  </p>
-                </div>
+      {loadError && (
+        <Card role="alert" className="mb-6 border-destructive/30 bg-destructive/5 shadow-none">
+          <CardContent className="flex flex-col gap-4 p-5 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-start gap-3">
+              <AlertCircle className="mt-0.5 h-5 w-5 shrink-0 text-destructive" aria-hidden="true" />
+              <div>
+                <p className="font-medium text-foreground">Document data is temporarily unavailable.</p>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  Your saved documents are safe. Retry when the database connection recovers.
+                </p>
               </div>
-              <Button type="button" variant="outline" className="shrink-0" onClick={() => window.location.reload()}>
-                Retry documents
-              </Button>
-            </CardContent>
-          </Card>
-        )}
+            </div>
+            <Button type="button" variant="outline" className="shrink-0" onClick={() => router.refresh()}>
+              Retry documents
+            </Button>
+          </CardContent>
+        </Card>
+      )}
 
-        <Card className="mb-6 border-border bg-card">
-          <CardContent className="pt-6">
-            <div className="grid gap-4 md:grid-cols-[1fr_auto_auto_auto]">
+      <section aria-labelledby="saved-documents-heading" className="overflow-hidden rounded-xl border border-border bg-card">
+        <div className="border-b border-border bg-muted/30 px-4 py-4 sm:px-5">
+          <div className="grid gap-3 lg:grid-cols-[minmax(18rem,1fr)_auto_auto_auto] lg:items-end">
+            <label className="grid gap-1.5" htmlFor="document-search">
+              <span className="text-xs font-medium text-muted-foreground">Search documents</span>
               <div className="relative">
-                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                <label htmlFor="document-search" className="sr-only">Search documents</label>
-                <Input id="document-search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search documents..." className="pl-10" disabled={loadError} />
+                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
+                <Input id="document-search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search by title or client" className="h-10 bg-card pl-10" disabled={loadError} />
               </div>
-              <label className="flex items-center gap-2 text-sm text-muted-foreground">
-                <Filter className="h-4 w-4" />
-                <span className="sr-only">Filter by type</span>
-                <select value={typeFilter} onChange={(event) => setTypeFilter(event.target.value)} className="h-9 rounded-md border border-input bg-background px-3 text-sm text-foreground" disabled={loadError}>
+            </label>
+            <label className="grid gap-1.5 text-xs font-medium text-muted-foreground">
+              Type
+              <span className="relative">
+                <Filter className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2" aria-hidden="true" />
+                <select aria-label="Filter by type" value={typeFilter} onChange={(event) => setTypeFilter(event.target.value)} className="h-10 min-w-40 rounded-md border border-input bg-card pl-9 pr-8 text-sm font-normal text-foreground" disabled={loadError}>
                   <option value="all">All types</option>
                   <option value="proposal">Proposals</option>
                   <option value="pitch-deck">Pitch decks</option>
                 </select>
-              </label>
-              <label className="flex items-center gap-2 text-sm text-muted-foreground">
-                <span className="sr-only">Sort documents</span>
-                <select value={sort} onChange={(event) => setSort(event.target.value as "newest" | "oldest")} className="h-9 rounded-md border border-input bg-background px-3 text-sm text-foreground" disabled={loadError}>
-                  <option value="newest">Newest first</option>
-                  <option value="oldest">Oldest first</option>
-                </select>
-              </label>
-              <label className="flex items-center gap-2 text-sm text-muted-foreground">
-                <span className="sr-only">Filter by date</span>
-                <select value={dateFilter} onChange={(event) => setDateFilter(event.target.value)} className="h-9 rounded-md border border-input bg-background px-3 text-sm text-foreground" disabled={loadError}>
-                  <option value="all">All dates</option>
+              </span>
+            </label>
+            <label className="grid gap-1.5 text-xs font-medium text-muted-foreground">
+              Date range
+              <span className="relative">
+                <CalendarDays className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2" aria-hidden="true" />
+                <select aria-label="Filter by date" value={dateFilter} onChange={(event) => setDateFilter(event.target.value)} className="h-10 min-w-40 rounded-md border border-input bg-card pl-9 pr-8 text-sm font-normal text-foreground" disabled={loadError}>
+                  <option value="all">Any date</option>
                   <option value="7">Last 7 days</option>
                   <option value="30">Last 30 days</option>
                   <option value="90">Last 90 days</option>
                 </select>
-              </label>
-            </div>
-            <div className="mt-3 flex min-h-5 items-center justify-between text-sm" aria-live="polite">
-              <span className="text-muted-foreground">{loadError ? "Document data unavailable" : `${filteredDocuments.length} of ${documents.length} documents`}</span>
-              {message && <span className="text-primary">{message}</span>}
-            </div>
-          </CardContent>
-        </Card>
+              </span>
+            </label>
+            <label className="grid gap-1.5 text-xs font-medium text-muted-foreground">
+              Sort
+              <select aria-label="Sort documents" value={sort} onChange={(event) => setSort(event.target.value as "newest" | "oldest")} className="h-10 min-w-36 rounded-md border border-input bg-card px-3 text-sm font-normal text-foreground" disabled={loadError}>
+                  <option value="newest">Newest first</option>
+                  <option value="oldest">Oldest first</option>
+                </select>
+            </label>
+          </div>
+        </div>
 
-        <Card className="border-border bg-card">
-          <CardHeader><CardTitle>All Documents ({filteredDocuments.length})</CardTitle></CardHeader>
-          <CardContent>
-            {loadError ? (
-              <div className="py-12 text-center">
-                <AlertCircle className="mx-auto mb-4 h-10 w-10 text-muted-foreground" aria-hidden="true" />
-                <h2 className="font-medium text-foreground">Documents unavailable</h2>
-                <p className="mt-1 text-sm text-muted-foreground">Retry the workspace after the database connection recovers.</p>
-              </div>
-            ) : filteredDocuments.length === 0 ? (
-              <div className="py-12 text-center">
-                <FileText className="mx-auto mb-4 h-10 w-10 text-muted-foreground" />
-                <h2 className="font-medium text-foreground">No matching documents</h2>
-                <p className="mt-1 text-sm text-muted-foreground">Adjust your search or create a new document.</p>
-              </div>
-            ) : (
-              <div className="space-y-4">
-                {filteredDocuments.map((document) => (
-                  <div key={document.id} className="flex flex-col gap-4 rounded-lg border border-border p-4 transition-colors hover:bg-muted/50 sm:flex-row sm:items-center sm:justify-between">
-                    <div className="flex min-w-0 items-center gap-4">
-                      <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-primary/10">
-                        {document.type === "proposal" ? <FileText className="h-6 w-6 text-primary" /> : <PresentationChart className="h-6 w-6 text-primary" />}
-                      </div>
-                      <div className="min-w-0">
-                        <h3 className="truncate font-medium text-foreground">{document.projectTitle || document.clientName || "Untitled Document"}</h3>
-                        <div className="mt-1 flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
-                          <span>{document.clientName || "No client"}</span>
-                          <span aria-hidden="true">•</span>
-                          <span>{new Date(document.createdAt).toLocaleDateString()}</span>
-                          <Badge variant="default" className="text-xs capitalize">{document.type.replace("-", " ")}</Badge>
-                        </div>
-                      </div>
+        <div className="flex min-h-14 flex-wrap items-center justify-between gap-3 border-b border-border px-4 py-3 sm:px-5" aria-live="polite">
+          <div className="flex items-center gap-3">
+            <h2 id="saved-documents-heading" className="font-semibold text-foreground">Saved documents</h2>
+            <Badge variant="secondary">{loadError ? "Unavailable" : `${filteredDocuments.length} of ${documents.length}`}</Badge>
+          </div>
+          <div className="flex items-center gap-3">
+            {message && <span className="text-sm font-medium text-primary">{message}</span>}
+            {hasActiveFilters && <Button type="button" variant="ghost" size="sm" onClick={clearFilters}>Reset filters</Button>}
+          </div>
+        </div>
+
+        {loadError ? (
+          <div className="px-5 py-16 text-center">
+            <AlertCircle className="mx-auto h-10 w-10 text-muted-foreground" aria-hidden="true" />
+            <h3 className="mt-4 font-semibold text-foreground">Documents unavailable</h3>
+            <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-muted-foreground">Retry when the database connection recovers.</p>
+          </div>
+        ) : filteredDocuments.length === 0 ? (
+          <div className="px-5 py-16 text-center">
+            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-xl border border-border bg-muted/40">
+              <FileText className="h-6 w-6 text-primary" aria-hidden="true" />
+            </div>
+            <h3 className="mt-4 font-semibold text-foreground">{hasActiveFilters ? "No documents match these filters" : "Your document register is ready"}</h3>
+            <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-muted-foreground">
+              {hasActiveFilters ? "Reset the filters or try a broader search." : "Create a proposal or pitch deck and it will appear here with its client, type, and delivery actions."}
+            </p>
+            <div className="mt-5 flex flex-wrap justify-center gap-2">
+              {hasActiveFilters ? (
+                <Button type="button" variant="outline" onClick={clearFilters}>Reset filters</Button>
+              ) : (
+                <>
+                  <Button variant="outline" asChild><Link href="/generate/proposal">Create proposal</Link></Button>
+                  <Button asChild><Link href="/generate/pitch-deck">Create pitch deck</Link></Button>
+                </>
+              )}
+            </div>
+          </div>
+        ) : (
+          <div>
+            <div className="hidden grid-cols-[minmax(0,1fr)_8rem_9rem_8.5rem] gap-4 border-b border-border bg-muted/15 px-5 py-2.5 text-xs font-medium text-muted-foreground md:grid">
+              <span>Document</span>
+              <span>Type</span>
+              <span>Created</span>
+              <span className="text-right">Actions</span>
+            </div>
+            <div className="divide-y divide-border">
+              {filteredDocuments.map((document) => (
+                <article key={document.id} className="grid gap-4 px-4 py-4 transition-colors hover:bg-muted/25 sm:px-5 md:grid-cols-[minmax(0,1fr)_8rem_9rem_8.5rem] md:items-center">
+                  <div className="flex min-w-0 items-center gap-3">
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-accent text-primary">
+                      {document.type === "proposal" ? <FileText className="h-5 w-5" aria-hidden="true" /> : <PresentationChart className="h-5 w-5" aria-hidden="true" />}
                     </div>
-                    <div className="flex items-center gap-1 self-end sm:self-auto">
-                      <Button variant="ghost" size="sm" asChild>
-                        <Link href={detailPath(document)} aria-label={`View ${document.projectTitle || "document"}`}><Eye className="h-4 w-4" /></Link>
-                      </Button>
-                      <a className={cn(buttonVariants({ variant: "ghost", size: "sm" }))} href={exportPath(document)} aria-label={`Download ${document.projectTitle || "document"}`}>
-                        <Download className="h-4 w-4" />
-                      </a>
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="sm" aria-label="More document actions"><MoreHorizontal className="h-4 w-4" /></Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuItem asChild><Link href={`/documents/${document.id}/edit`}>Edit</Link></DropdownMenuItem>
-                          <DropdownMenuItem disabled={pendingId === document.id} onSelect={() => void duplicateDocument(document)}>Duplicate</DropdownMenuItem>
-                          <DropdownMenuItem variant="destructive" disabled={pendingId === document.id} onSelect={() => void deleteDocument(document)}><Trash2 className="h-4 w-4" />Delete</DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
+                    <div className="min-w-0">
+                      <Link href={detailPath(document)} className="block truncate font-medium text-foreground hover:text-primary hover:underline hover:underline-offset-4">
+                        {document.projectTitle || document.clientName || "Untitled document"}
+                      </Link>
+                      <p className="mt-1 truncate text-sm text-muted-foreground">{document.clientName || "No client assigned"}</p>
                     </div>
                   </div>
-                ))}
-                {hasMore && (
-                  <div className="flex justify-center pt-2">
-                    <Button variant="outline" onClick={() => void loadMoreDocuments()} disabled={loadingMore}>
-                      {loadingMore ? "Loading…" : "Load more documents"}
+                  <div className="flex items-center justify-between gap-3 md:block">
+                    <span className="text-xs font-medium text-muted-foreground md:hidden">Type</span>
+                    <Badge variant="outline" className="capitalize">{document.type.replace("-", " ")}</Badge>
+                  </div>
+                  <div className="flex items-center justify-between gap-3 text-sm text-muted-foreground md:block">
+                    <span className="text-xs font-medium md:hidden">Created</span>
+                    <time dateTime={document.createdAt}>{documentDateFormatter.format(new Date(document.createdAt))}</time>
+                  </div>
+                  <div className="flex items-center justify-end gap-1">
+                    <Button variant="ghost" size="icon" className="h-10 w-10" asChild>
+                      <Link href={detailPath(document)} aria-label={`View ${document.projectTitle || "document"}`}><Eye className="h-4 w-4" /></Link>
                     </Button>
+                    <Button variant="ghost" size="icon" className="h-10 w-10" asChild>
+                      <a href={exportPath(document)} aria-label={`Download ${document.projectTitle || "document"}`}><Download className="h-4 w-4" /></a>
+                    </Button>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" size="icon" className="h-10 w-10" aria-label="More document actions"><MoreHorizontal className="h-4 w-4" /></Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem asChild><Link href={`/documents/${document.id}/edit`}>Edit</Link></DropdownMenuItem>
+                        <DropdownMenuItem disabled={pendingId === document.id} onSelect={() => void duplicateDocument(document)}>Duplicate</DropdownMenuItem>
+                        <DropdownMenuItem variant="destructive" disabled={pendingId === document.id} onSelect={() => void deleteDocument(document)}><Trash2 className="h-4 w-4" />Delete</DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
                   </div>
-                )}
+                </article>
+              ))}
+            </div>
+            {hasMore && (
+              <div className="flex justify-center border-t border-border px-5 py-4">
+                <Button variant="outline" onClick={() => void loadMoreDocuments()} disabled={loadingMore}>
+                  {loadingMore ? "Loading…" : "Load more documents"}
+                </Button>
               </div>
             )}
-          </CardContent>
-        </Card>
-    </WorkspaceShell>
+          </div>
+        )}
+      </section>
+    </>
   )
 }

@@ -1,6 +1,7 @@
 "use client"
 
 import { FormEvent, useCallback, useEffect, useRef, useState } from "react"
+import Link from "next/link"
 import { ArrowLeft, History, RotateCcw, Save } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -8,7 +9,6 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { parsePitchDeckSlides, serializePitchDeckSlides, type EditablePitchSlide } from "@/lib/pitch-deck-editor"
-import { WorkspaceShell } from "@/components/workspace-shell"
 
 export type EditableDocument = {
   id: string
@@ -170,13 +170,13 @@ export function DocumentEditor({ document }: { document: EditableDocument }) {
   }
 
   return (
-    <WorkspaceShell active="editor" contentClassName="max-w-6xl">
+    <>
       <div>
         <div className="mb-8 flex items-center justify-between gap-4">
           <div>
-            <a href={returnPath} className="mb-4 inline-flex items-center text-sm text-muted-foreground transition-colors hover:text-foreground">
+            <Link href={returnPath} className="mb-4 inline-flex items-center text-sm text-muted-foreground transition-colors hover:text-foreground">
               <ArrowLeft className="mr-2 h-4 w-4" /> Back to document
-            </a>
+            </Link>
             <p className="mb-2 text-xs font-semibold uppercase tracking-[0.12em] text-primary">Document workspace / Edit</p>
             <h1 className="text-3xl font-semibold text-foreground">Edit {document.type === "proposal" ? "proposal" : "pitch deck"}</h1>
             <p className="mt-2 text-muted-foreground">Make a controlled update, then save it to your private workspace.</p>
@@ -288,7 +288,7 @@ export function DocumentEditor({ document }: { document: EditableDocument }) {
           )}
 
           <div className="flex flex-col-reverse items-stretch justify-between gap-3 sm:flex-row sm:items-center">
-            <Button type="button" variant="outline" asChild><a href={returnPath}>Cancel</a></Button>
+            <Button type="button" variant="outline" asChild><Link href={returnPath}>Cancel</Link></Button>
             <div className="flex items-center justify-end gap-3">
               <span className={`text-sm ${status === "error" ? "text-destructive" : "text-muted-foreground"}`} aria-live="polite">
                 {status === "saving" && "Saving…"}
@@ -303,6 +303,6 @@ export function DocumentEditor({ document }: { document: EditableDocument }) {
           </div>
         </form>
       </div>
-    </WorkspaceShell>
+    </>
   )
 }
