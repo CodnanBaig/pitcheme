@@ -69,7 +69,6 @@ describe("production readiness contracts", () => {
       "app/api/account/profile/route.ts": 30,
       "app/api/auth/[...nextauth]/route.ts": 30,
       "app/api/auth/register/route.ts": 30,
-      "app/api/auth/session/route.ts": 30,
       "app/api/documents/route.ts": 30,
       "app/api/documents/[id]/route.ts": 30,
       "app/api/documents/[id]/duplicate/route.ts": 30,
@@ -461,6 +460,16 @@ describe("production readiness contracts", () => {
     expect(eventSource).not.toContain("user.email")
   })
 
+  it("leaves the NextAuth session endpoint to the catch-all handler", () => {
+    expect(fs.existsSync(path.join(process.cwd(), "app/api/auth/session/route.ts"))).toBe(false)
+
+    const nextAuthRoute = fs.readFileSync(
+      path.join(process.cwd(), "app/api/auth/[...nextauth]/route.ts"),
+      "utf8",
+    )
+    expect(nextAuthRoute).toContain("handler as GET")
+  })
+
   it("keeps internal brand exploration routes out of production by default", () => {
     const landingPage = fs.readFileSync(path.join(process.cwd(), "app/page.tsx"), "utf8")
     const publicHeader = fs.readFileSync(path.join(process.cwd(), "components/public-header.tsx"), "utf8")
@@ -535,7 +544,6 @@ describe("production readiness contracts", () => {
       "app/api/export/proposal/[id]/route.ts",
       "app/api/export/pitch-deck/[id]/route.ts",
       "app/api/auth/register/route.ts",
-      "app/api/auth/session/route.ts",
       "app/api/stripe/create-checkout/route.ts",
       "app/api/stripe/create-portal/route.ts",
       "app/api/stripe/webhook/route.ts",
