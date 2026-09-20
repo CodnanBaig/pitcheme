@@ -8,10 +8,11 @@ const nextConfig: NextConfig = {
   outputFileTracingRoot: process.cwd(),
   // The serverless Chromium package resolves its compressed runtime assets at
   // execution time, so static tracing cannot discover them automatically.
-  // Keep the include scoped to the health and export functions that need it.
+  // The prebuild copies them out of pnpm's symlink tree so Vercel can package
+  // regular files. Keep the include scoped to functions that need Chromium.
   outputFileTracingIncludes: {
-    "/api/health": ["./node_modules/@sparticuz/chromium/bin/**/*"],
-    "/api/export/**/*": ["./node_modules/@sparticuz/chromium/bin/**/*"],
+    "/api/health": ["./.vercel-runtime/chromium/**/*"],
+    "/api/export/**/*": ["./.vercel-runtime/chromium/**/*"],
   },
   async headers() {
     const developmentScriptPolicy = process.env.NODE_ENV === "production" ? "" : " 'unsafe-eval'"

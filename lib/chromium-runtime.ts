@@ -1,4 +1,5 @@
 import { chromium } from "playwright-core"
+import path from "node:path"
 
 type ChromiumLaunchOptions = Parameters<typeof chromium.launch>[0]
 
@@ -13,13 +14,17 @@ async function loadServerlessChromium() {
   return chromiumPackage.default
 }
 
+function bundledChromiumAssetsPath(): string {
+  return path.join(process.cwd(), ".vercel-runtime", "chromium")
+}
+
 export async function resolveChromiumExecutablePath(): Promise<string | undefined> {
   const configuredPath = configuredExecutablePath()
   if (configuredPath) return configuredPath
 
   if (process.env.VERCEL === "1") {
     const serverlessChromium = await loadServerlessChromium()
-    return serverlessChromium.executablePath()
+    return serverlessChromium.executablePath(bundledChromiumAssetsPath())
   }
 
   return undefined

@@ -504,14 +504,19 @@ describe("production readiness contracts", () => {
     expect(runbook).toContain("Vercel uses the bundled `@sparticuz/chromium`")
     expect(packageJson).toContain('"@sparticuz/chromium"')
     expect(chromiumRuntime).toContain('process.env.VERCEL === "1"')
-    expect(chromiumRuntime).toContain("serverlessChromium.executablePath()")
+    expect(chromiumRuntime).toContain("serverlessChromium.executablePath(bundledChromiumAssetsPath())")
   })
 
   it("traces serverless Chromium assets into health and export functions", () => {
     expect(nextConfig.outputFileTracingIncludes).toEqual({
-      "/api/health": ["./node_modules/@sparticuz/chromium/bin/**/*"],
-      "/api/export/**/*": ["./node_modules/@sparticuz/chromium/bin/**/*"],
+      "/api/health": ["./.vercel-runtime/chromium/**/*"],
+      "/api/export/**/*": ["./.vercel-runtime/chromium/**/*"],
     })
+
+    const packageJson = fs.readFileSync(path.join(process.cwd(), "package.json"), "utf8")
+    const gitignore = fs.readFileSync(path.join(process.cwd(), ".gitignore"), "utf8")
+    expect(packageJson).toContain("node scripts/prepare-chromium-runtime.mjs")
+    expect(gitignore).toContain("/.vercel-runtime/")
   })
 
   it("connects critical route failures to bounded operational telemetry", () => {

@@ -8,7 +8,7 @@
   },
   "scripts": {
     "dev": "next dev",
-    "prebuild": "prisma generate",
+    "prebuild": "prisma generate && node scripts/prepare-chromium-runtime.mjs",
     "build": "next build",
     "start": "next start",
     "lint": "eslint .",
