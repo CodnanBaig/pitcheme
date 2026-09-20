@@ -15,6 +15,7 @@ const booleanEnvironmentFlags = [
   "HEALTHCHECK_DATABASE_INDEXES",
   "STRIPE_BILLING_ENABLED",
   "E2E_TEST_MODE",
+  "PORTFOLIO_DEMO_MODE",
   "BRAND_LAB_ENABLED",
 ] as const
 const modelEnvironmentOverrides = Object.values(modelConfiguration).map(({ environment }) => environment)
@@ -116,8 +117,12 @@ export function getRuntimeEnvironmentStatus(): RuntimeEnvironmentStatus {
   }
 
   if (isProduction) {
-    if (!hasValue("OPENROUTER_API_KEY")) {
+    if (process.env.PORTFOLIO_DEMO_MODE !== "true" && !hasValue("OPENROUTER_API_KEY")) {
       errors.push("OPENROUTER_API_KEY is required in production")
+    }
+
+    if (process.env.PORTFOLIO_DEMO_MODE === "true") {
+      warnings.push("Portfolio demo mode uses deterministic generation instead of an external AI provider")
     }
 
     const isLocalE2ECallback = process.env.E2E_TEST_MODE === "true"

@@ -173,7 +173,8 @@ DATABASE_URL="mongodb://127.0.0.1:27017/pitchgenie?replicaSet=rs0"
 # Absolute http(s) URL; production deployments must use https://
 NEXTAUTH_URL="http://localhost:3000"
 NEXTAUTH_SECRET="replace-with-a-long-random-secret"
-OPENROUTER_API_KEY="your-openrouter-key"
+OPENROUTER_API_KEY="your-openrouter-key" # Optional when portfolio demo mode is enabled
+PORTFOLIO_DEMO_MODE="false" # Set true for deterministic generation without an external provider
 AI_COST_PER_MILLION_TOKENS="" # Optional blended paid-model rate per million tokens
 APP_VERSION="0.1.0" # Local value; production must set the immutable release identifier
 BUILD_SHA="" # Production commit when the platform does not provide one automatically
@@ -320,8 +321,11 @@ pnpm db:studio
   deployments; use `CHROMIUM_EXECUTABLE_PATH` for new configuration.
 - Configure environment variables (see `.env.example`) on your hosting provider
 - Production builds require `DATABASE_URL`, an HTTPS `NEXTAUTH_URL`, a
-  32-character `NEXTAUTH_SECRET`, and `OPENROUTER_API_KEY`; the build fails
-  fast when these are missing. Production runtime readiness also requires an
+  32-character `NEXTAUTH_SECRET`, and `OPENROUTER_API_KEY` unless
+  `PORTFOLIO_DEMO_MODE=true`; the build fails fast when these are missing.
+  Portfolio demo mode keeps proposal and pitch-deck creation functional with
+  deterministic, input-aware output and does not contact an external provider.
+  Production runtime readiness also requires an
   explicit `APP_VERSION` and build commit (`BUILD_SHA`, `GIT_COMMIT_SHA`, or
   `VERCEL_GIT_COMMIT_SHA`) so an uncorrelated image cannot receive traffic.
 - Production runtime validation requires `RATE_LIMIT_STORE=mongodb`; the

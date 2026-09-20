@@ -39,14 +39,18 @@ describe('AI Service - Kimi-K2 Integration', () => {
   const mockStreamText = require('ai').streamText;
   const mockSelectModel = selectModel as jest.MockedFunction<typeof selectModel>;
   const originalE2eMode = process.env.E2E_TEST_MODE;
+  const originalPortfolioDemoMode = process.env.PORTFOLIO_DEMO_MODE;
 
   beforeEach(() => {
     jest.clearAllMocks();
+    delete process.env.PORTFOLIO_DEMO_MODE;
   });
 
   afterEach(() => {
     if (originalE2eMode === undefined) delete process.env.E2E_TEST_MODE;
     else process.env.E2E_TEST_MODE = originalE2eMode;
+    if (originalPortfolioDemoMode === undefined) delete process.env.PORTFOLIO_DEMO_MODE;
+    else process.env.PORTFOLIO_DEMO_MODE = originalPortfolioDemoMode;
   });
 
   it('returns deterministic structured fixtures in explicit E2E mode', async () => {
@@ -97,6 +101,27 @@ describe('AI Service - Kimi-K2 Integration', () => {
       services: [],
       fieldSpecificData: {},
     }))).rejects.toMatchObject({ name: 'AbortError' });
+  });
+
+  it('generates input-aware portfolio demo documents without calling a provider', async () => {
+    delete process.env.E2E_TEST_MODE;
+    process.env.PORTFOLIO_DEMO_MODE = 'true';
+
+    const proposal = await aiService.generateProposal({
+      field: 'technology',
+      clientName: 'Portfolio Client',
+      projectTitle: 'Portfolio Project',
+      projectDescription: 'A polished portfolio demonstration',
+      goals: 'Show the complete product journey',
+      budget: 'TBD',
+      timeline: '6 weeks',
+      services: ['Discovery'],
+      fieldSpecificData: {},
+    });
+
+    expect(proposal).toMatchObject({ model: 'demo/deterministic', success: true });
+    expect(proposal.content).toContain('Portfolio Project');
+    expect(mockGenerateText).not.toHaveBeenCalled();
   });
 
   it('streams provider deltas while preserving the existing response contract', async () => {

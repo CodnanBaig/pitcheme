@@ -8,7 +8,8 @@ changes should not replace it with provider-default styling.
 
 - MongoDB (hosted replica set, with the deployment network/IP allow-list
   configured)
-- OpenRouter credentials for generation
+- OpenRouter credentials for live generation, or explicit portfolio demo mode
+  for deterministic, provider-free generation
 - A Node runtime that can run Next.js and a Chromium executable for PDF export
 
 Stripe billing is disabled by default. Do not advertise paid checkout until the
@@ -23,7 +24,8 @@ Required in production:
 DATABASE_URL=mongodb://...?replicaSet=<replica-set-name>
 NEXTAUTH_URL=https://your-domain.example
 NEXTAUTH_SECRET=<at least 32 random characters>
-OPENROUTER_API_KEY=<provider key>
+OPENROUTER_API_KEY=<provider key, optional when PORTFOLIO_DEMO_MODE=true>
+PORTFOLIO_DEMO_MODE=false
 APP_VERSION=<immutable release identifier>
 BUILD_SHA=<commit identifier, unless the platform supplies one>
 STRIPE_BILLING_ENABLED=false
@@ -64,6 +66,12 @@ Keep `E2E_TEST_MODE` unset in preview and production. The validator permits the
 deterministic fixture provider only when the callback URL is an explicit local
 `http://localhost` or `http://127.0.0.1` address; any real HTTPS deployment with
 that flag is rejected before authenticated routes can start.
+
+For portfolio-only deployments without provider credentials, set
+`PORTFOLIO_DEMO_MODE=true` and keep `E2E_TEST_MODE` unset. Proposal and pitch-deck
+creation then use deterministic, input-aware output, the health check reports
+the demo provider explicitly, and no external AI request is attempted. Keep
+this flag disabled for customer-facing production products.
 
 The reviewed model defaults can be changed without a code release when a
 provider model is deprecated or a deployment has an approved model policy:

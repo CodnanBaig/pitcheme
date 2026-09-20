@@ -7,6 +7,7 @@ describe("runtime environment validation", () => {
   const originalNextAuthSecret = process.env.NEXTAUTH_SECRET
   const originalDatabaseUrl = process.env.DATABASE_URL
   const originalE2eMode = process.env.E2E_TEST_MODE
+  const originalPortfolioDemoMode = process.env.PORTFOLIO_DEMO_MODE
   const originalBrandLabFlag = process.env.BRAND_LAB_ENABLED
   const originalStripeFlag = process.env.STRIPE_BILLING_ENABLED
   const originalStripeSecret = process.env.STRIPE_SECRET_KEY
@@ -35,6 +36,7 @@ describe("runtime environment validation", () => {
       ["NEXTAUTH_URL", originalNextAuthUrl],
       ["NEXTAUTH_SECRET", originalNextAuthSecret],
       ["E2E_TEST_MODE", originalE2eMode],
+      ["PORTFOLIO_DEMO_MODE", originalPortfolioDemoMode],
       ["BRAND_LAB_ENABLED", originalBrandLabFlag],
     ] as const) {
       if (value === undefined) delete process.env[name]
@@ -91,6 +93,25 @@ describe("runtime environment validation", () => {
       "NEXTAUTH_URL must use https:// in production",
     ]))
     expect(() => assertRuntimeEnvironment()).toThrow("Invalid runtime environment")
+  })
+
+  it("accepts explicit portfolio demo mode without provider credentials", () => {
+    process.env.NODE_ENV = "production"
+    process.env.DATABASE_URL = "mongodb://127.0.0.1:27017/pitchgenie?replicaSet=rs0"
+    process.env.NEXTAUTH_URL = "https://pitchgenie.example.com"
+    process.env.NEXTAUTH_SECRET = "secure-production-secret-that-is-at-least-32-characters"
+    process.env.PORTFOLIO_DEMO_MODE = "true"
+    process.env.HEALTHCHECK_EXPORT_RUNTIME = "true"
+    process.env.HEALTHCHECK_DATABASE_INDEXES = "true"
+    process.env.RATE_LIMIT_STORE = "mongodb"
+    delete process.env.OPENROUTER_API_KEY
+
+    const status = getRuntimeEnvironmentStatus()
+
+    expect(status).toMatchObject({ ok: true, errors: [] })
+    expect(status.warnings).toContain(
+      "Portfolio demo mode uses deterministic generation instead of an external AI provider",
+    )
   })
 
   it("allows a local callback URL only in explicit E2E mode", () => {

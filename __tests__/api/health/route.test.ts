@@ -19,11 +19,13 @@ describe("GET /api/health", () => {
     process.env.STRIPE_WEBHOOK_SECRET = "whsec_test_123"
     delete process.env.HEALTHCHECK_EXTERNAL_SERVICES
     delete process.env.HEALTHCHECK_EXPORT_RUNTIME
+    delete process.env.PORTFOLIO_DEMO_MODE
   })
 
   afterEach(() => {
     delete process.env.HEALTHCHECK_EXTERNAL_SERVICES
     delete process.env.HEALTHCHECK_EXPORT_RUNTIME
+    delete process.env.PORTFOLIO_DEMO_MODE
     delete process.env.STRIPE_BILLING_ENABLED
   })
 
@@ -43,6 +45,22 @@ describe("GET /api/health", () => {
     expect(body.environment.missing).toEqual([])
     expect(response.headers.get("Cache-Control")).toBe("no-store")
     expect(mockPing).toHaveBeenCalledWith({ ping: 1 })
+  })
+
+  it("reports healthy deterministic generation in portfolio demo mode", async () => {
+    process.env.PORTFOLIO_DEMO_MODE = "true"
+    process.env.STRIPE_BILLING_ENABLED = "false"
+    delete process.env.OPENROUTER_API_KEY
+    mockPing.mockResolvedValue({ ok: 1 })
+
+    const response = await GET(new NextRequest("http://localhost:3000/api/health"))
+    const body = await response.json()
+
+    expect(response.status).toBe(200)
+    expect(body.checks.ai_service).toMatchObject({
+      status: "healthy",
+      message: "Deterministic portfolio demo generation is enabled",
+    })
   })
 
   it("fails production readiness when release provenance is missing", async () => {

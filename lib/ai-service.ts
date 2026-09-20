@@ -62,8 +62,9 @@ export interface PitchDeckGenerationRequest {
 export class FieldSpecificAIService {
   
   async generateProposal(data: ProposalGenerationRequest): Promise<OpenRouterGenerationResponse> {
-    if (process.env.E2E_TEST_MODE === "true") {
-      const response = buildE2EProposalResponse(data)
+    const deterministicModel = getDeterministicGenerationModel()
+    if (deterministicModel) {
+      const response = buildDeterministicProposalResponse(data, deterministicModel)
       throwIfGenerationAborted(data.abortSignal)
       await emitGenerationStage("provider")
       for (const chunk of response.content.match(/[\s\S]{1,96}/g) || [response.content]) {
@@ -143,8 +144,9 @@ export class FieldSpecificAIService {
   }
 
   async generatePitchDeck(data: PitchDeckGenerationRequest): Promise<OpenRouterGenerationResponse> {
-    if (process.env.E2E_TEST_MODE === "true") {
-      const response = buildE2EPitchDeckResponse(data)
+    const deterministicModel = getDeterministicGenerationModel()
+    if (deterministicModel) {
+      const response = buildDeterministicPitchDeckResponse(data, deterministicModel)
       throwIfGenerationAborted(data.abortSignal)
       await emitGenerationStage("provider")
       for (const chunk of response.content.match(/[\s\S]{1,96}/g) || [response.content]) {
@@ -686,7 +688,16 @@ markdown fences.
 // Export singleton instance
 export const aiService = new FieldSpecificAIService();
 
-function buildE2EProposalResponse(data: ProposalGenerationRequest): OpenRouterGenerationResponse {
+function getDeterministicGenerationModel(): string | null {
+  if (process.env.E2E_TEST_MODE === "true") return "e2e/deterministic"
+  if (process.env.PORTFOLIO_DEMO_MODE === "true") return "demo/deterministic"
+  return null
+}
+
+function buildDeterministicProposalResponse(
+  data: ProposalGenerationRequest,
+  model: string,
+): OpenRouterGenerationResponse {
   const content = JSON.stringify({
     title: `${data.projectTitle} Proposal`,
     executiveSummary: `A deterministic proposal for ${data.clientName}, prepared for the ${data.field} workflow.`,
@@ -710,14 +721,17 @@ function buildE2EProposalResponse(data: ProposalGenerationRequest): OpenRouterGe
 
   return {
     content,
-    model: "e2e/deterministic",
+    model,
     tokensUsed: 128,
     generationTime: 5,
     success: true,
   }
 }
 
-function buildE2EPitchDeckResponse(data: PitchDeckGenerationRequest): OpenRouterGenerationResponse {
+function buildDeterministicPitchDeckResponse(
+  data: PitchDeckGenerationRequest,
+  model: string,
+): OpenRouterGenerationResponse {
   const slides = [
     ["Company overview", `Introducing ${data.startupName}`, data.tagline || "A focused solution for a clear market need."],
     ["The problem", data.problem, "The current workflow leaves meaningful value on the table."],
@@ -737,7 +751,7 @@ function buildE2EPitchDeckResponse(data: PitchDeckGenerationRequest): OpenRouter
       tagline: data.tagline || "A focused, measurable solution",
       slides,
     }),
-    model: "e2e/deterministic",
+    model,
     tokensUsed: 192,
     generationTime: 5,
     success: true,

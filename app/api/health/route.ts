@@ -210,6 +210,14 @@ async function findMissingMongoIndexes(): Promise<string[]> {
 
 async function checkAIService(): Promise<HealthCheck> {
   const startedAt = Date.now()
+  if (process.env.PORTFOLIO_DEMO_MODE === "true") {
+    return {
+      status: "healthy",
+      responseTime: Date.now() - startedAt,
+      message: "Deterministic portfolio demo generation is enabled",
+    }
+  }
+
   if (!process.env.OPENROUTER_API_KEY?.trim()) {
     return {
       status: "unhealthy",
