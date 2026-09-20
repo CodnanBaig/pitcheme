@@ -6,6 +6,13 @@ const nextConfig: NextConfig = {
   // Keep standalone tracing scoped to this app when a parent workspace also
   // contains a lockfile.
   outputFileTracingRoot: process.cwd(),
+  // The serverless Chromium package resolves its compressed runtime assets at
+  // execution time, so static tracing cannot discover them automatically.
+  // Keep the include scoped to the health and export functions that need it.
+  outputFileTracingIncludes: {
+    "/api/health": ["./node_modules/@sparticuz/chromium/bin/**/*"],
+    "/api/export/**/*": ["./node_modules/@sparticuz/chromium/bin/**/*"],
+  },
   async headers() {
     const developmentScriptPolicy = process.env.NODE_ENV === "production" ? "" : " 'unsafe-eval'"
     const securityHeaders = [

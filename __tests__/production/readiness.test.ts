@@ -507,6 +507,13 @@ describe("production readiness contracts", () => {
     expect(chromiumRuntime).toContain("serverlessChromium.executablePath()")
   })
 
+  it("traces serverless Chromium assets into health and export functions", () => {
+    expect(nextConfig.outputFileTracingIncludes).toEqual({
+      "/api/health": ["./node_modules/@sparticuz/chromium/bin/**/*"],
+      "/api/export/**/*": ["./node_modules/@sparticuz/chromium/bin/**/*"],
+    })
+  })
+
   it("connects critical route failures to bounded operational telemetry", () => {
     const monitoring = fs.readFileSync(path.join(process.cwd(), "lib/error-monitoring.ts"), "utf8")
     expect(monitoring).toContain("sendOperationalErrorTelemetry")
